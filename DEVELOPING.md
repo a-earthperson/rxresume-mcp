@@ -11,6 +11,24 @@
 uv sync --extra dev
 ```
 
+## Local quickstart (from git)
+
+Clone and run the MCP server from source:
+
+```bash
+git clone https://github.com/a-earthperson/rxresume-mcp.git
+cd rxresume-mcp
+uv sync
+```
+
+Run locally with stdio transport:
+
+```bash
+APP_URL="http://localhost:3000" \
+REST_API_KEY="rxresume-key" \
+uv run rxresume-mcp --mcp-transport stdio
+```
+
 ## Configuration (env + CLI)
 
 Configuration can be provided via environment variables or CLI flags. CLI flags
