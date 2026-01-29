@@ -1,0 +1,74 @@
+networks:
+  backhaul:
+
+x-base: &x-base
+  networks:
+    - backhaul
+  pull_policy: always
+  restart: unless-stopped
+  env_file:
+    - docker/example.env
+
+x-healthcheck: &x-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 30s
+
+services:
+  postgres:
+    <<: *x-base
+    image: postgres:16
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      <<: *x-healthcheck
+  
+  printer:
+    <<: *x-base
+    image: ghcr.io/browserless/chromium:latest
+    ports:
+      - "4000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/pressure?token=your-secret-printer-service-token"]
+      <<: *x-healthcheck
+
+  rxresume:
+    <<: *x-base
+    image: ghcr.io/amruthpillai/reactive-resume:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - rxresume_storage:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      printer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      <<: *x-healthcheck
+
+  mcp:
+    <<: *x-base
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    depends_on:
+      rxresume:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      <<: *x-healthcheck
+      test:
+        [
+          "CMD-SHELL",
+          "if [ \"$$MCP_TRANSPORT\" = \"stdio\" ]; then exit 0; fi; python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close()\"",
+        ]
+
+
+volumes:
+  db_data:
+  rxresume_storage:

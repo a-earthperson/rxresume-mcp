@@ -1,0 +1,58 @@
+name: Docker
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: |
+          docker build -t lightrag-mcp:ci .
+
+      - name: Run Docker container
+        run: |
+          docker run -d --name lightrag-mcp-ci -p 8000:8000 lightrag-mcp:ci
+          for i in {1..30}; do
+            status="$(docker inspect -f '{{.State.Health.Status}}' lightrag-mcp-ci 2>/dev/null || true)"
+            if [ "$status" = "healthy" ]; then
+              echo "Container is healthy"
+              break
+            fi
+            if [ "$status" = "unhealthy" ]; then
+              echo "Container is unhealthy"
+              docker logs lightrag-mcp-ci
+              exit 1
+            fi
+            sleep 1
+          done
+          if [ "$status" != "healthy" ]; then
+            echo "Container did not become healthy in time"
+            docker logs lightrag-mcp-ci
+            exit 1
+          fi
+
+      - name: Stop container
+        if: always()
+        run: |
+          docker rm -f lightrag-mcp-ci || true
+
+      - name: Validate Docker Compose
+        run: |
+          docker compose config
+          docker compose up --build -d
+          docker compose ps
+
+      - name: Stop Docker Compose
+        if: always()
+        run: |
+          docker compose down --volumes --remove-orphans || true

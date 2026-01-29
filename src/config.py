@@ -9,7 +9,6 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
-DEFAULT_DOMAIN = "http://localhost:3000"
 DEFAULT_TIMEOUT = 30
 DEFAULT_USER_AGENT = "rxresume-mcp/0.1.0"
 
@@ -82,18 +81,13 @@ class MCPSettings:
 
 
 def _resolve_rxresume_settings() -> RxResumeSettings:
-    base_url_env = _normalize_base_url(os.getenv("RXRESUME_BASE_URL", "").strip())
-    domain_env = os.getenv("RXRESUME_DOMAIN", "").strip()
+    domain_env = os.getenv("APP_URL", "").strip()
+    base_url = _build_base_url(domain_env)
+        
 
-    if base_url_env:
-        base_url = base_url_env
-    else:
-        domain = domain_env or DEFAULT_DOMAIN
-        base_url = _build_base_url(domain)
-
-    api_key = os.getenv("RXRESUME_API_KEY", "").strip()
-    timeout = _get_int_env("RXRESUME_TIMEOUT", DEFAULT_TIMEOUT)
-    user_agent = os.getenv("RXRESUME_USER_AGENT", DEFAULT_USER_AGENT).strip()
+    api_key = os.getenv("REST_API_KEY", "").strip()
+    timeout = _get_int_env("REST_API_TIMEOUT", DEFAULT_TIMEOUT)
+    user_agent = os.getenv("REST_API_USER_AGENT", DEFAULT_USER_AGENT).strip()
 
     return RxResumeSettings(
         base_url=base_url,
