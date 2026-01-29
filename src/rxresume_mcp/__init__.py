@@ -1,5 +1,6 @@
 """RxResume MCP server package."""
 
-__all__ = ["__version__"]
+__all__ = ["__version__", "DEFAULT_USER_AGENT"]
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
+DEFAULT_USER_AGENT = f"rxresume-mcp/{__version__}"

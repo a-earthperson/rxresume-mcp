@@ -14,6 +14,8 @@ import httpx
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
 
+from . import DEFAULT_USER_AGENT
+
 logger = logging.getLogger(__name__)
 
 
@@ -109,7 +111,7 @@ class RxResumeClient:
         base_url: str,
         api_key: str,
         timeout: int = 30,
-        user_agent: str = "rxresume-mcp/0.1.0",
+        user_agent: str = DEFAULT_USER_AGENT,
     ):
         """
         Initialize Reactive Resume API client.

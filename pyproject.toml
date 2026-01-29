@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rxresume_mcp"
-version = "0.1.2"
+dynamic = ["version"]
 description = "MCP Server for Reactive Resume"
 requires-python = ">=3.11"
 readme = "README.md"
@@ -27,5 +27,12 @@ dev = [
 [project.scripts]
 rxresume-mcp = "rxresume_mcp.main:main"
 
+[tool.hatch.version]
+path = "src/rxresume_mcp/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/rxresume_mcp"]
+include = ["references/resume-schema.json"]
+
+[tool.hatch.build.targets.sdist]
+include = ["references/resume-schema.json"]

@@ -9,6 +9,8 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
+from . import DEFAULT_USER_AGENT
+
 
 def _normalize_path(path: str) -> str:
     if not path.startswith("/"):
@@ -68,7 +70,7 @@ class RxResumeSettings:
     base_url: str = "https://rxresu.me"
     api_key: str = ""
     timeout: int = 30
-    user_agent: str = "rxresume-mcp/0.1.1"
+    user_agent: str = DEFAULT_USER_AGENT
 
     @property
     def is_configured(self) -> bool:

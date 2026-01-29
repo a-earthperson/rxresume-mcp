@@ -42,7 +42,7 @@ always override environment variables. Booleans support explicit negation via
 | `APP_URL` | `https://rxresu.me` | Base URL of Reactive Resume (e.g. `http://localhost:3000`). |
 | `REST_API_KEY` | empty | API key for the REST API (`x-api-key`). |
 | `REST_API_TIMEOUT` | `30` | Request timeout in seconds. |
-| `REST_API_USER_AGENT` | `rxresume-mcp/0.1.0` | User-Agent header for API requests. |
+| `REST_API_USER_AGENT` | `rxresume-mcp/<package version>` | User-Agent header for API requests. |
 | `MCP_TRANSPORT` | `streamable-http` | MCP transport: `stdio`, `sse`, or `streamable-http`. |
 | `MCP_HTTP_HOST` | `localhost` | Host interface for HTTP transports. |
 | `MCP_HTTP_PORT` | `8000` | Port for HTTP transports. |
@@ -66,7 +66,7 @@ Notes:
 | --- | --- | --- |
 | `--app-url` | `https://rxresu.me` | Reactive Resume API base URL. |
 | `--app-api-key` | empty | API key for the REST API (`x-api-key`). |
-| `--app-api-user-agent` | `rxresume-mcp/0.1.0` | User-Agent header for API requests. |
+| `--app-api-user-agent` | `rxresume-mcp/<package version>` | User-Agent header for API requests. |
 | `--app-api-timeout` | `30` | Request timeout in seconds. |
 | `--mcp-transport` | `streamable-http` | MCP transport: `stdio`, `sse`, or `streamable-http`. |
 | `--mcp-http-host` | `localhost` | Host interface for HTTP transports. |

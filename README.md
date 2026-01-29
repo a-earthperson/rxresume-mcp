@@ -39,7 +39,7 @@ Use this as a starting point for your MCP client configuration (stdio transport)
         "APP_URL": "https://rxresu.me",
         "REST_API_KEY": "your-rxresume-api-key",
         "REST_API_TIMEOUT": "30",
-        "REST_API_USER_AGENT": "rxresume-mcp/0.1.0"
+        "REST_API_USER_AGENT": "rxresume-mcp/<package version>"
       }
     }
   }
@@ -81,7 +81,7 @@ Use this as a starting point for your MCP client configuration (stdio transport)
         "APP_URL": "https://rxresu.me",
         "REST_API_KEY": "your-rxresume-api-key",
         "REST_API_TIMEOUT": "30",
-        "REST_API_USER_AGENT": "rxresume-mcp/0.1.0"
+        "REST_API_USER_AGENT": "rxresume-mcp/<package version>"
       }
     }
   }
@@ -107,7 +107,7 @@ Cursor example (note the `--project` path):
         "APP_URL": "https://rxresu.me",
         "REST_API_KEY": "your-rxresume-api-key",
         "REST_API_TIMEOUT": "30",
-        "REST_API_USER_AGENT": "rxresume-mcp/0.1.0"
+        "REST_API_USER_AGENT": "rxresume-mcp/<package version>"
       }
     }
   }
