@@ -55,9 +55,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    depends_on:
-      rxresume:
-        condition: service_healthy
     ports:
       - "8000:8000"
     healthcheck:

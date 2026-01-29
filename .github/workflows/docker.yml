@@ -49,8 +49,8 @@ jobs:
       - name: Validate Docker Compose
         run: |
           docker compose config
-          docker compose up --build -d
-          docker compose ps
+          docker compose up --build -d mcp
+          docker compose ps mcp
 
       - name: Stop Docker Compose
         if: always()

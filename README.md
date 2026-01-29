@@ -3,6 +3,8 @@
 [![Docker](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/docker.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/docker.yml)
 [![Lint](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/lint.yml)
 [![Tests](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/rxresume-mcp.svg)](https://pypi.org/project/rxresume-mcp/)
+[![GHCR](https://img.shields.io/badge/ghcr.io-rxresume--mcp-blue)](https://github.com/a-earthperson/rxresume-mcp/pkgs/container/rxresume-mcp)
 
 
 A small MCP wrapper around the [Reactive Resume](https://github.com/amruthpillai/reactive-resume) REST API.
