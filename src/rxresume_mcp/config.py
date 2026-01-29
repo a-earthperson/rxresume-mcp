@@ -68,7 +68,7 @@ class RxResumeSettings:
     base_url: str = "https://rxresu.me"
     api_key: str = ""
     timeout: int = 30
-    user_agent: str = "rxresume-mcp/0.1.0"
+    user_agent: str = "rxresume-mcp/0.1.1"
 
     @property
     def is_configured(self) -> bool:

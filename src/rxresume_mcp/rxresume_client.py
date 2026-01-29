@@ -4,12 +4,85 @@ Async client for interacting with Reactive Resume API.
 
 from __future__ import annotations
 
+import json
 import logging
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import httpx
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError, ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def _deep_merge(base: Any, patch: Any) -> Any:
+    if isinstance(base, dict) and isinstance(patch, dict):
+        merged = dict(base)
+        for key, value in patch.items():
+            if key in merged:
+                merged[key] = _deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+    return patch
+
+
+def _find_resume_schema_path() -> Path | None:
+    package_candidate = (
+        Path(__file__).resolve().parent / "resources" / "resume-schema.json"
+    )
+    if package_candidate.is_file():
+        return package_candidate
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "references" / "resume-schema.json"
+        if candidate.is_file():
+            return candidate
+
+    return None
+
+
+@lru_cache(maxsize=1)
+def _load_resume_schema() -> Dict[str, Any]:
+    schema_path = _find_resume_schema_path()
+    if not schema_path:
+        raise FileNotFoundError(
+            "Resume schema file not found (expected references/resume-schema.json)"
+        )
+    return json.loads(schema_path.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
+def _resume_schema_validator() -> Draft202012Validator:
+    schema = _load_resume_schema()
+    Draft202012Validator.check_schema(schema)
+    return Draft202012Validator(schema)
+
+
+def _format_validation_errors(
+    errors: List[ValidationError], max_errors: int = 5
+) -> str:
+    lines: List[str] = []
+    for err in errors[:max_errors]:
+        path = ".".join(str(part) for part in err.path) or "<root>"
+        lines.append(f"{path}: {err.message}")
+    if len(errors) > max_errors:
+        lines.append(f"... ({len(errors) - max_errors} more)")
+    return "; ".join(lines)
+
+
+def _validate_resume_data(data: Dict[str, Any]) -> None:
+    try:
+        validator = _resume_schema_validator()
+    except (FileNotFoundError, json.JSONDecodeError, SchemaError) as exc:
+        raise ValueError(f"Resume schema unavailable or invalid: {exc}") from exc
+
+    errors = sorted(validator.iter_errors(data), key=lambda err: list(err.path))
+    if errors:
+        details = _format_validation_errors(errors)
+        raise ValueError(f"Resume data failed schema validation: {details}")
 
 
 class RxResumeAPIError(RuntimeError):
@@ -150,6 +223,9 @@ class RxResumeClient:
         tags: Optional[List[str]] = None,
         data: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        if data is not None:
+            _validate_resume_data(data)
+
         payload: Dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
@@ -161,6 +237,46 @@ class RxResumeClient:
             payload["data"] = data
 
         return await self._request("PUT", f"/resume/{resume_id}", json_body=payload)
+
+    async def update_resume_with_patch(
+        self,
+        resume_id: str,
+        *,
+        name: Optional[str] = None,
+        slug: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        data_patch: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        if data_patch is None:
+            return await self.update_resume(
+                resume_id=resume_id,
+                name=name,
+                slug=slug,
+                tags=tags,
+                data=None,
+            )
+
+        if not isinstance(data_patch, dict):
+            raise ValueError("data_patch must be an object (dict) when provided")
+
+        resume = await self.get_resume(resume_id)
+        if not isinstance(resume, dict):
+            raise ValueError("Resume payload is not a JSON object")
+
+        base_data = resume.get("data")
+        if base_data is None:
+            base_data = {}
+        if not isinstance(base_data, dict):
+            raise ValueError("Resume data is not a JSON object")
+
+        merged_data = _deep_merge(base_data, data_patch)
+        return await self.update_resume(
+            resume_id=resume_id,
+            name=name,
+            slug=slug,
+            tags=tags,
+            data=merged_data,
+        )
 
     async def delete_resume(self, resume_id: str) -> Any:
         return await self._request("DELETE", f"/resume/{resume_id}", json_body={})
