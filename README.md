@@ -2,9 +2,11 @@
 [![Coverage](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/coverage.yml)
 [![Docker](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/docker.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/docker.yml)
 [![Lint](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/lint.yml)
-[![Publish to PyPI](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/publish.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/publish.yml)
 [![Tests](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/a-earthperson/rxresume-mcp/actions/workflows/tests.yml)
-A small MCP wrapper around the [Reactive Resume](https://github.com/amruthpillai/reactive-resume) REST API
+
+
+A small MCP wrapper around the [Reactive Resume](https://github.com/amruthpillai/reactive-resume) REST API.
+Use it to manipulate resumes using MCP tools.
 
 ## Quick start
 
@@ -36,7 +38,7 @@ Use this as a starting point for your MCP client configuration (stdio transport)
       "command": "uv",
       "args": ["run", "rxresume-mcp", "--mcp-transport", "stdio"],
       "env": {
-        "APP_URL": "http://localhost:3000",
+        "APP_URL": "https://rxresu.me",
         "REST_API_KEY": "your-rxresume-api-key",
         "REST_API_TIMEOUT": "30",
         "REST_API_USER_AGENT": "rxresume-mcp/0.1.0"
@@ -62,7 +64,7 @@ Cursor example (note the `--project` path):
         "stdio"
       ],
       "env": {
-        "APP_URL": "http://localhost:3000",
+        "APP_URL": "https://rxresu.me",
         "REST_API_KEY": "your-rxresume-api-key",
         "REST_API_TIMEOUT": "30",
         "REST_API_USER_AGENT": "rxresume-mcp/0.1.0"
