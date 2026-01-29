@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rxresume_mcp"
+version = "0.1.0"
+description = "MCP Server for Reactive Resume"
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = [
+    "mcp>=1.26.0",
+    "httpx>=0.28.1",
+    "pydantic>=2.11",
+    "python-dotenv>=1.0.1",
+    "attrs>=25.3.0"
+]
+
+[project.scripts]
+rxresume-mcp = "rxresume_mcp.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rxresume_mcp"]
