@@ -65,6 +65,8 @@ def format_response(result: Any, is_error: bool = False) -> Dict[str, Any]:
     if isinstance(result, list):
         return {"status": "success", "response": result}
 
+    if hasattr(result, "model_dump") and callable(getattr(result, "model_dump")):
+        return {"status": "success", "response": result.model_dump()}
     if hasattr(result, "dict") and callable(getattr(result, "dict")):
         return {"status": "success", "response": result.dict()}
     if hasattr(result, "__dict__"):

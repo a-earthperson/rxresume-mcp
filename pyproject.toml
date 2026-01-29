@@ -16,6 +16,13 @@ dependencies = [
     "attrs>=25.3.0"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.6.0"
+]
+
 [project.scripts]
 rxresume-mcp = "rxresume_mcp.main:main"
 

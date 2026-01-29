@@ -15,16 +15,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
         with:
           python-version: "3.11"
 
-      - name: Install uv and dev dependencies
+      - name: Install dependencies
         run: |
-          pipx install uv
-          uv venv --python 3.11
-          uv pip install -e ".[dev]"
+          uv sync --frozen --extra dev
 
       - name: Ruff check
         run: |

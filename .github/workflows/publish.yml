@@ -20,16 +20,10 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v3
       with:
         python-version: "3.11"
-
-    - name: Install uv and build tools
-      run: |
-        pipx install uv
-        uv venv --python 3.11
-        uv pip install build
 
     - name: Build package
       run: |
