@@ -83,7 +83,6 @@ class MCPSettings:
 def _resolve_rxresume_settings() -> RxResumeSettings:
     domain_env = os.getenv("APP_URL", "").strip()
     base_url = _build_base_url(domain_env)
-        
 
     api_key = os.getenv("REST_API_KEY", "").strip()
     timeout = _get_int_env("REST_API_TIMEOUT", DEFAULT_TIMEOUT)
