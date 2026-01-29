@@ -118,9 +118,7 @@ class RxResumeClient:
                 params.append(("tags[]", tag))
         if sort:
             params.append(("sort", sort))
-        return await self._request(
-            "GET", "/resume/list", params=params or None
-        )
+        return await self._request("GET", "/resume/list", params=params or None)
 
     async def get_resume(self, resume_id: str) -> Any:
         return await self._request("GET", f"/resume/{resume_id}")
@@ -162,14 +160,10 @@ class RxResumeClient:
         if data is not None:
             payload["data"] = data
 
-        return await self._request(
-            "PUT", f"/resume/{resume_id}", json_body=payload
-        )
+        return await self._request("PUT", f"/resume/{resume_id}", json_body=payload)
 
     async def delete_resume(self, resume_id: str) -> Any:
-        return await self._request(
-            "DELETE", f"/resume/{resume_id}", json_body={}
-        )
+        return await self._request("DELETE", f"/resume/{resume_id}", json_body={})
 
     async def export_resume_pdf(self, resume_id: str) -> Any:
         return await self._request(

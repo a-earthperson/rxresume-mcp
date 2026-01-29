@@ -9,7 +9,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -65,6 +65,8 @@ def format_response(result: Any, is_error: bool = False) -> Dict[str, Any]:
     if isinstance(result, list):
         return {"status": "success", "response": result}
 
+    if hasattr(result, "model_dump") and callable(getattr(result, "model_dump")):
+        return {"status": "success", "response": result.model_dump()}
     if hasattr(result, "dict") and callable(getattr(result, "dict")):
         return {"status": "success", "response": result.dict()}
     if hasattr(result, "__dict__"):
