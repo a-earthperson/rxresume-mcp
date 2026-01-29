@@ -196,4 +196,3 @@ def register_resources(mcp: FastMCP) -> None:
     )
     def get_design_notes() -> str:
         return DESIGN_NOTES_DOC
-

@@ -14,7 +14,9 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 
-def _format_target(resume_id: str | None, username: str | None, slug: str | None) -> str:
+def _format_target(
+    resume_id: str | None, username: str | None, slug: str | None
+) -> str:
     if resume_id:
         return f"resume_id={resume_id}"
     if username and slug:
@@ -131,7 +133,9 @@ def register_prompts(mcp: FastMCP) -> None:
         description="Constraints for template, layout, and design edits.",
     )
     def rxresume_design_guardrails(
-        change_type: Literal["template", "layout", "typography", "css", "colors", "levels"] = Field(
+        change_type: Literal[
+            "template", "layout", "typography", "css", "colors", "levels"
+        ] = Field(
             description="Type of design change requested.",
         ),
     ) -> str:

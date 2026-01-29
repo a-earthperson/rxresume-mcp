@@ -15,5 +15,3 @@ mcp = FastMCP(lifespan=app_lifespan, **config.MCP.__dict__)
 register_resources(mcp)
 register_prompts(mcp)
 register_tools(mcp)
-
-

@@ -61,7 +61,9 @@ def _resume_schema_validator() -> Draft202012Validator:
     return Draft202012Validator(schema)
 
 
-def _format_validation_errors(errors: List[ValidationError], max_errors: int = 5) -> str:
+def _format_validation_errors(
+    errors: List[ValidationError], max_errors: int = 5
+) -> str:
     lines: List[str] = []
     for err in errors[:max_errors]:
         path = ".".join(str(part) for part in err.path) or "<root>"
