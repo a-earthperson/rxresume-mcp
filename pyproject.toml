@@ -13,7 +13,8 @@ dependencies = [
     "httpx>=0.28.1",
     "pydantic>=2.11",
     "python-dotenv>=1.0.1",
-    "attrs>=25.3.0"
+    "attrs>=25.3.0",
+    "jsonschema>=4.26.0",
 ]
 
 [project.optional-dependencies]
