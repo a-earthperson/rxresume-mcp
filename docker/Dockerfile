@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 ############################
 # Builder: resolve/install deps into a venv
 ############################
@@ -17,12 +18,14 @@ RUN python -m venv "${VIRTUAL_ENV}" \
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project
+COPY pyproject.toml ./
+RUN --mount=type=bind,source=.,target=/workspace,readonly \
+  if [ -f /workspace/uv.lock ]; then cp /workspace/uv.lock /app/uv.lock; fi && \
+  if [ -f /app/uv.lock ]; then uv sync --frozen --no-install-project; else uv sync --no-install-project; fi
 
 COPY src ./src
 COPY README.md LICENSE ./
-RUN uv sync --frozen
+RUN if [ -f /app/uv.lock ]; then uv sync --frozen; else uv sync; fi
 
 ############################
 # Runtime: copy venv only
@@ -49,7 +52,7 @@ WORKDIR /app
 # Runtime-configurable REST_API_HOST + MCP parameters (override via env or docker run -e)
 ENV MCP_TRANSPORT=streamable-http \
     MCP_HTTP_HOST=0.0.0.0 \
-    MCP_HTTP_PORT=8001 \
+    MCP_HTTP_PORT=8000 \
     MCP_HTTP_PATH=/ \
     MCP_HTTP_STATELESS=true \
     MCP_HTTP_JSON_RESPONSE=true \

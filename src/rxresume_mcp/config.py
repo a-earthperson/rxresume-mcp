@@ -65,7 +65,7 @@ class MCPSettings:
     name: str = "RxResume MCP Server"
     website_url: str | None = None
     host: str = "127.0.0.1"
-    port: int = 8001
+    port: int = 8000
     mount_path: str = "/"
     sse_path: str = "/sse"
     message_path: str = "/messages/"
