@@ -38,11 +38,6 @@ def _find_resume_schema_path() -> Path | None:
     if package_candidate.is_file():
         return package_candidate
 
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "references" / "resume-schema.json"
-        if candidate.is_file():
-            return candidate
-
     return None
 
 
@@ -51,7 +46,7 @@ def _load_resume_schema() -> Dict[str, Any]:
     schema_path = _find_resume_schema_path()
     if not schema_path:
         raise FileNotFoundError(
-            "Resume schema file not found (expected references/resume-schema.json)"
+            "Resume schema file not found (expected packaged resources)."
         )
     return json.loads(schema_path.read_text(encoding="utf-8"))
 

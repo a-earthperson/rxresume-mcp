@@ -24,6 +24,36 @@ jobs:
       - name: Build package (dry run)
         run: |
           uv build --no-sources
+      - name: Validate wheel contents
+        run: |
+          uv run python - <<'PY'
+          import glob
+          import zipfile
+
+          wheels = sorted(glob.glob("dist/*.whl"))
+          if not wheels:
+              raise SystemExit("No wheels found in dist/.")
+
+          wheel = wheels[-1]
+          with zipfile.ZipFile(wheel) as zf:
+              names = set(zf.namelist())
+
+          package_files = [n for n in names if n.startswith("rxresume_mcp/")]
+          if not package_files:
+              raise SystemExit("Wheel is missing rxresume_mcp package files.")
+
+          resource_files = [
+              n for n in names if n.startswith("rxresume_mcp/resources/")
+          ]
+          if not resource_files:
+              raise SystemExit(
+                  "Wheel is missing rxresume_mcp/resources packaged data."
+              )
+
+          print(f"Validated wheel: {wheel}")
+          print(f"Package files: {len(package_files)}")
+          print(f"Resource files: {len(resource_files)}")
+          PY
 
   prepublish-docker:
     runs-on: ubuntu-latest

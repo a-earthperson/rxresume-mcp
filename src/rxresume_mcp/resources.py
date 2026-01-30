@@ -127,11 +127,6 @@ def _find_resume_schema_path() -> Path | None:
     if package_candidate.is_file():
         return package_candidate
 
-    for parent in Path(__file__).resolve().parents:
-        candidate = parent / "references" / "resume-schema.json"
-        if candidate.is_file():
-            return candidate
-
     return None
 
 
