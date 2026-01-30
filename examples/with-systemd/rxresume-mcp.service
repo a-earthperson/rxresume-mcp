@@ -1,0 +1,20 @@
+[Unit]
+Description=RxResume MCP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rxresume
+Group=rxresume
+EnvironmentFile=/etc/rxresume-mcp.env
+ExecStart=/usr/local/bin/rxresume-mcp --mcp-transport streamable-http --mcp-http-host 0.0.0.0 --mcp-http-port 8000
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

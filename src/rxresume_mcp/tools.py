@@ -228,13 +228,22 @@ def register_tools(mcp: FastMCP) -> None:
     async def update_resume(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
-        name: Optional[str] = Field(description="New resume name", default=None),
+        name: Optional[str] = Field(
+            description="New resume title (not the person's name; use data.basics.name)",
+            default=None,
+        ),
         slug: Optional[str] = Field(description="New resume slug", default=None),
         tags: Optional[List[str]] = Field(
             description="Tags to set (pass [] to clear)", default=None
         ),
         data: Optional[Dict[str, Any]] = Field(
-            description="Resume data payload", default=None
+            description=(
+                "Resume data patch merged into existing data. Must conform to the "
+                "RxResume schema; top-level keys: picture, basics, summary, "
+                "sections, customSections, metadata. Use data.basics.* for person "
+                "info. See rxresume://schema/summary."
+            ),
+            default=None,
         ),
     ) -> Dict[str, Any]:
         if name is None and slug is None and tags is None and data is None:

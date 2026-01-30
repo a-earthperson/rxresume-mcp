@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "rxresume": {
+      "command": "rxresume-mcp",
+      "args": ["--mcp-transport", "stdio"],
+      "env": {
+        "APP_URL": "http://localhost:3000",
+        "REST_API_KEY": "your-rxresume-api-key"
+      }
+    }
+  }
+}

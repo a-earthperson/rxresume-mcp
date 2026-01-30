@@ -1,0 +1,52 @@
+networks:
+  traefik-public:
+    external: true
+
+services:
+  rxresume-mcp:
+    restart: unless-stopped
+    pull_policy: always
+    image: ghcr.io/a-earthperson/rxresume-mcp:latest
+    environment:
+      APP_URL: https://rxresu.me
+      REST_API_KEY: rxresume-api-key
+      MCP_TRANSPORT: streamable-http
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: 8000
+      MCP_HTTP_PATH: /
+      MCP_HTTP_STATELESS: true
+      MCP_HTTP_JSON_RESPONSE: true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - traefik-public
+    labels:
+      # http endpoint simply redirects to https
+      traefik.http.routers.rxresume-mcp-http.entrypoints: http
+      traefik.http.routers.rxresume-mcp-http.rule: Host(`mcp.your-domain.com`)
+      traefik.http.routers.rxresume-mcp-http.middlewares: https-redirect
+      traefik.http.routers.rxresume-mcp-https.entrypoints: https
+      # always require a Authorization header
+      traefik.http.routers.rxresume-mcp-https.rule: Host(`mcp.your-domain.com`) && HeadersRegexp(`Authorization`, `^Bearer\s+`)
+      traefik.http.routers.rxresume-mcp-https.tls: 'true'
+      traefik.http.routers.rxresume-mcp-https.tls.certresolver: le
+      traefik.http.routers.rxresume-mcp-https.middlewares: rxresume-mcp-forward-auth
+      traefik.http.services.rxresume-mcp.loadbalancer.server.port: 8000
+      # now a small header inspecting middleware, passes the token to external auth service
+      traefik.http.middlewares.rxresume-mcp-forward-auth.forwardauth.address: "https://auth.your-domain.com/api/rest/users/me?fields=id"
+      traefik.http.middlewares.rxresume-mcp-forward-auth.forwardauth.trustForwardHeader: 'true'
+      traefik.http.middlewares.rxresume-mcp-forward-auth.forwardauth.authRequestHeaders: Authorization
+      traefik.constraint-label: traefik-public
+      traefik.docker.network: traefik-public
+      traefik.enable: 'true'
+    healthcheck:
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+      test:
+        [
+          "CMD-SHELL",
+          "if [ \"$$MCP_TRANSPORT\" = \"stdio\" ]; then exit 0; fi; python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1', 8000)); s.close()\"",
+        ]
+

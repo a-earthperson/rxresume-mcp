@@ -43,6 +43,10 @@ TOOL_SEMANTICS_DOC = dedent(
     - update_resume: data is validated against the local JSON schema before PUT;
       schema errors are returned to MCP.
     - update_resume: tags=None leaves tags unchanged; tags=[] clears all tags.
+    - update_resume: name is the resume title; use data.basics.name for the
+      person's name.
+    - update_resume: do not send JSON Resume-style keys at the top level
+      (education, employment, job_title, etc). Use data.basics and data.sections.
     - delete_resume: sends DELETE with an empty JSON body; response may be empty.
     - export_resume_pdf / export_resume_screenshot: Accept header set to
       PDF/PNG.
@@ -77,6 +81,18 @@ SCHEMA_SUMMARY_DOC = dedent(
     - Each section object requires title, columns, hidden, and items[].
     - Item schemas are strict (no extra keys) and vary by section; see JSON
       schema for exact fields.
+
+    Common field mappings
+    - Person name -> basics.name
+    - Headline/job title -> basics.headline
+    - Email/phone/location -> basics.email/phone/location
+    - Website -> basics.website.url + basics.website.label
+    - Social links -> sections.profiles.items (or basics.customFields)
+    - Education entries -> sections.education.items
+    - Employment entries -> sections.experience.items
+    - Projects -> sections.projects.items
+    - Skills -> sections.skills.items
+    - Notes (private) -> metadata.notes (HTML string)
 
     Custom sections
     - customSections[] requires title, columns, hidden, id, type, items.

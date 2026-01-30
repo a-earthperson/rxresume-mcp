@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -58,28 +59,111 @@ def _resume_schema_validator() -> Draft202012Validator:
     return Draft202012Validator(schema)
 
 
+COMMON_DATA_FIELD_HINTS: Dict[str, str] = {
+    "name": "data.basics.name (resume title is update_resume.name)",
+    "job_title": "data.basics.headline",
+    "headline": "data.basics.headline",
+    "email": "data.basics.email",
+    "phone": "data.basics.phone",
+    "location": "data.basics.location",
+    "website": "data.basics.website.url/label",
+    "summary": "data.summary.content (HTML string)",
+    "notes": "data.metadata.notes (HTML string)",
+    "social_media": "data.sections.profiles.items or data.basics.customFields",
+    "profiles": "data.sections.profiles.items",
+    "employment": "data.sections.experience.items",
+    "experience": "data.sections.experience.items",
+    "education": "data.sections.education.items",
+    "projects": "data.sections.projects.items",
+    "skills": "data.sections.skills.items",
+    "languages": "data.sections.languages.items",
+    "interests": "data.sections.interests.items",
+    "awards": "data.sections.awards.items",
+    "certifications": "data.sections.certifications.items",
+    "publications": "data.sections.publications.items",
+    "volunteer": "data.sections.volunteer.items",
+    "references": "data.sections.references.items",
+}
+
+
+def _extract_root_additional_keys(
+    errors: List[ValidationError],
+) -> List[str]:
+    extras: List[str] = []
+    for err in errors:
+        if err.validator != "additionalProperties":
+            continue
+        if err.path:
+            continue
+        additional = err.params.get("additionalProperties")
+        if isinstance(additional, list):
+            extras.extend(str(value) for value in additional)
+        elif isinstance(additional, str):
+            extras.append(additional)
+    return sorted(set(extras))
+
+
+def _format_additional_properties_hint(
+    schema: Dict[str, Any] | None, extra_keys: List[str]
+) -> str | None:
+    if not schema or not extra_keys:
+        return None
+    allowed = sorted(schema.get("properties", {}).keys())
+    hints: List[str] = []
+    if allowed:
+        hints.append("allowed top-level keys: " + ", ".join(allowed))
+    mapped = [
+        f"{key} -> {COMMON_DATA_FIELD_HINTS[key]}"
+        for key in extra_keys
+        if key in COMMON_DATA_FIELD_HINTS
+    ]
+    if mapped:
+        hints.append("common mappings: " + "; ".join(mapped))
+    if not hints:
+        return None
+    return "hint: " + " | ".join(hints)
+
+
 def _format_validation_errors(
-    errors: List[ValidationError], max_errors: int = 5
+    errors: List[ValidationError],
+    max_errors: int = 5,
+    schema: Dict[str, Any] | None = None,
 ) -> str:
     lines: List[str] = []
+    extra_keys = _extract_root_additional_keys(errors)
     for err in errors[:max_errors]:
         path = ".".join(str(part) for part in err.path) or "<root>"
         lines.append(f"{path}: {err.message}")
     if len(errors) > max_errors:
         lines.append(f"... ({len(errors) - max_errors} more)")
+    hint = _format_additional_properties_hint(schema, extra_keys)
+    if hint:
+        lines.append(hint)
     return "; ".join(lines)
 
 
 def _validate_resume_data(data: Dict[str, Any]) -> None:
     try:
+        schema = _load_resume_schema()
         validator = _resume_schema_validator()
     except (FileNotFoundError, json.JSONDecodeError, SchemaError) as exc:
         raise ValueError(f"Resume schema unavailable or invalid: {exc}") from exc
 
     errors = sorted(validator.iter_errors(data), key=lambda err: list(err.path))
     if errors:
-        details = _format_validation_errors(errors)
+        details = _format_validation_errors(errors, schema=schema)
         raise ValueError(f"Resume data failed schema validation: {details}")
+
+
+def _validate_resume_id(resume_id: str) -> None:
+    if not isinstance(resume_id, str) or not resume_id:
+        raise ValueError("resume_id must be a non-empty string")
+    try:
+        uuid.UUID(resume_id)
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid resume_id '{resume_id}'. Expected UUID format."
+        ) from exc
 
 
 class RxResumeAPIError(RuntimeError):
@@ -191,6 +275,7 @@ class RxResumeClient:
         return await self._request("GET", "/resume/list", params=params or None)
 
     async def get_resume(self, resume_id: str) -> Any:
+        _validate_resume_id(resume_id)
         return await self._request("GET", f"/resume/{resume_id}")
 
     async def get_resume_by_username(self, username: str, slug: str) -> Any:
@@ -220,6 +305,7 @@ class RxResumeClient:
         tags: Optional[List[str]] = None,
         data: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        _validate_resume_id(resume_id)
         if data is not None:
             _validate_resume_data(data)
 
@@ -244,6 +330,7 @@ class RxResumeClient:
         tags: Optional[List[str]] = None,
         data_patch: Optional[Dict[str, Any]] = None,
     ) -> Any:
+        _validate_resume_id(resume_id)
         if data_patch is None:
             return await self.update_resume(
                 resume_id=resume_id,
@@ -276,9 +363,11 @@ class RxResumeClient:
         )
 
     async def delete_resume(self, resume_id: str) -> Any:
+        _validate_resume_id(resume_id)
         return await self._request("DELETE", f"/resume/{resume_id}", json_body={})
 
     async def export_resume_pdf(self, resume_id: str) -> Any:
+        _validate_resume_id(resume_id)
         return await self._request(
             "GET",
             f"/printer/resume/{resume_id}/pdf",
@@ -286,6 +375,7 @@ class RxResumeClient:
         )
 
     async def export_resume_screenshot(self, resume_id: str) -> Any:
+        _validate_resume_id(resume_id)
         return await self._request(
             "GET",
             f"/printer/resume/{resume_id}/screenshot",
