@@ -8,6 +8,9 @@ dynamic = ["version"]
 description = "MCP Server for Reactive Resume"
 requires-python = ">=3.11"
 readme = "README.md"
+authors = [
+    {name = "Arjun Earthperson", email = "mail@earthperson.org"},
+]
 dependencies = [
     "mcp>=1.25.0",
     "httpx>=0.28.1",
