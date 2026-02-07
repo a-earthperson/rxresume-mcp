@@ -31,10 +31,12 @@ TOOL_SEMANTICS_DOC = dedent(
     Tool-specific notes
     - list_resumes: tags are sent as repeated "tags[]" query params; empty list
       => no tag filter.
-    - list_resumes: sort is passed through verbatim (API-defined values,
-      e.g. "updatedAt", "-updatedAt").
+    - list_resumes: sort is passed through verbatim (API-defined values:
+      "lastUpdatedAt", "createdAt", "name"). "lastUpdatedAt" sorts descending.
     - get_resume / get_resume_by_username: return full resume objects including
       "data".
+    - get_resume_section: returns a focused subtree by section path
+      (basics | summary | picture | metadata | sections.<type> | customSections.<id>).
     - create_resume: always sends tags array (empty allowed); with_sample_data
       maps to "withSampleData".
     - create_resume: returns the created resume id (string).
@@ -47,6 +49,13 @@ TOOL_SEMANTICS_DOC = dedent(
       person's name.
     - update_resume: do not send JSON Resume-style keys at the top level
       (education, employment, job_title, etc). Use data.basics and data.sections.
+    - edit_section_items: builds JSON Patch ops to add/update/remove section
+      items by id (built-in sections or a specific custom section).
+    - edit_custom_sections: builds JSON Patch ops to add/update/remove custom
+      sections by id.
+    - patch_resume: raw JSON Patch escape hatch; validates RFC 6902 shape.
+    - edit_section_items / edit_custom_sections / patch_resume: default response
+      is a minimal summary; include_result=true returns the full resume.
     - delete_resume: sends DELETE with an empty JSON body; response may be empty.
     - export_resume_pdf / export_resume_screenshot: Accept header set to
       PDF/PNG.
@@ -136,6 +145,47 @@ DESIGN_NOTES_DOC = dedent(
 ).strip()
 
 
+PATCH_OPS_DOC = dedent(
+    """
+    # RxResume JSON Patch paths (PATCH /resume/{id})
+
+    Content type
+    - application/json-patch+json (preferred) or application/json
+
+    Allowed top-level paths
+    - /name, /slug, /tags, /isPublic
+    - /tags is an array; add with /tags/- and remove by index (e.g., /tags/0)
+    - top-level fields cannot be removed
+
+    Data paths
+    - /data/... (resume data subtree, schema-validated)
+    - Built-in sections:
+      /data/sections/<section>/items/...
+    - Custom sections:
+      /data/customSections/...
+
+    By-id resolution
+    - Section items:
+      /data/sections/<section>/items/id/<item_id>/...
+    - Custom sections:
+      /data/customSections/id/<custom_section_id>/...
+    - Custom section items:
+      /data/customSections/id/<custom_section_id>/items/id/<item_id>/...
+
+    Important edge cases
+    - Numeric ids are treated as array indexes unless you use the explicit
+      /id/<id> form.
+    - Append to arrays using "-" (e.g., /data/sections/experience/items/-).
+    - "move" and "copy" cannot use a "-" path for the "from" location.
+    - Forbidden path segments: __proto__, prototype, constructor.
+
+    Section types (built-in)
+    - profiles, experience, education, projects, skills, languages, interests,
+      awards, certifications, publications, volunteer, references
+    """
+).strip()
+
+
 def _find_resume_schema_path() -> Path | None:
     package_candidate = (
         Path(__file__).resolve().parent / "resources" / "resume-schema.json"
@@ -207,3 +257,13 @@ def register_resources(mcp: FastMCP) -> None:
     )
     def get_design_notes() -> str:
         return DESIGN_NOTES_DOC
+
+    @mcp.resource(
+        "rxresume://docs/patch-ops",
+        name="rxresume_patch_ops",
+        title="RxResume JSON Patch Paths",
+        description="Allowed JSON Patch paths and by-id rules for PATCH /resume/{id}.",
+        mime_type="text/markdown",
+    )
+    def get_patch_ops() -> str:
+        return PATCH_OPS_DOC

@@ -69,6 +69,7 @@ def register_prompts(mcp: FastMCP) -> None:
             2) Read descriptive resources before editing:
                - rxresume://schema/summary (required fields, invariants)
                - rxresume://docs/tool-semantics (tool behavior)
+               - rxresume://docs/patch-ops (JSON Patch path rules)
                - rxresume://docs/design-notes (if touching metadata/layout)
                - rxresume://schema/resume (exact field shapes if needed)
             3) Plan the smallest possible patch:
@@ -76,7 +77,11 @@ def register_prompts(mcp: FastMCP) -> None:
                - Preserve required fields and do not add extra keys
                  (additionalProperties=false).
             4) If editing HTML fields, apply rxresume_html_content_style.
-            5) Execute update_resume with a minimal data patch.
+            5) Choose the smallest tool surface:
+               - For section item edits, use edit_section_items.
+               - For custom section edits, use edit_custom_sections.
+               - For advanced edits, use patch_resume with JSON Patch.
+               - Use update_resume only when you must merge a larger data subtree.
             6) Re-fetch the resume to confirm the changes applied as intended.
             """
         ).strip()

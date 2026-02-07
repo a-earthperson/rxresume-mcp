@@ -220,16 +220,20 @@ class RxResumeClient:
         path: str,
         *,
         params: Optional[Iterable[Tuple[str, str]]] = None,
-        json_body: Optional[Dict[str, Any]] = None,
+        json_body: Optional[Any] = None,
         accept: str = "application/json",
+        content_type: Optional[str] = None,
     ) -> Any:
         logger.debug("Requesting %s %s", method, path)
+        headers = {"Accept": accept}
+        if content_type:
+            headers["Content-Type"] = content_type
         response = await self.client.request(
             method,
             path,
             params=params,
             json=json_body,
-            headers={"Accept": accept},
+            headers=headers,
         )
         content_type = response.headers.get("Content-Type", "")
 
@@ -320,6 +324,22 @@ class RxResumeClient:
             payload["data"] = data
 
         return await self._request("PUT", f"/resume/{resume_id}", json_body=payload)
+
+    async def patch_resume(
+        self,
+        resume_id: str,
+        *,
+        patch_ops: List[Dict[str, Any]],
+    ) -> Any:
+        _validate_resume_id(resume_id)
+        if not isinstance(patch_ops, list):
+            raise ValueError("patch_ops must be a JSON Patch list")
+        payload = {"id": resume_id, "patch": patch_ops}
+        return await self._request(
+            "PATCH",
+            f"/resume/{resume_id}",
+            json_body=payload,
+        )
 
     async def update_resume_with_patch(
         self,

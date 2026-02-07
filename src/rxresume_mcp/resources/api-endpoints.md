@@ -18,7 +18,7 @@ All endpoints require `x-api-key` header.
 - **GET** `/resume/list`
 - Query params:
   - `tags` (string[], optional; encoded as `tags[]`)
-  - `sort` (string, optional; default: `lastUpdatedAt`; enum options not exposed in docs)
+  - `sort` (string, optional; default: `lastUpdatedAt`; enum: `lastUpdatedAt` | `createdAt` | `name`)
 - Response: array of resume summaries (id, name, slug, tags, isPublic, isLocked, createdAt, updatedAt)
 
 ## Get resume by ID
@@ -53,6 +53,18 @@ All endpoints require `x-api-key` header.
   - `data` (object, optional; full resume data object)
   - `isPublic` (boolean, optional; not used by MVP script)
 - Response: updated resume object (type not fully specified in docs)
+
+## Patch a resume
+- **PATCH** `/resume/{id}`
+- Path params:
+  - `id` (string, required)
+- Headers:
+  - `Content-Type: application/json`
+- Body (JSON):
+  - Object: `{ "id": "<resume_id>", "patch": [ ... ] }`
+  - `patch` is a JSON Patch array (RFC 6902). Supports `add`, `replace`, `remove`,
+    `test`, `move`, `copy` and by-id paths for section items and custom sections.
+- Response: updated resume object (same shape as GET /resume/{id})
 
 ## Delete a resume
 - **DELETE** `/resume/{id}`
