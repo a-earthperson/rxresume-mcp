@@ -18,7 +18,7 @@ All endpoints require `x-api-key` header.
 - **GET** `/resume/list`
 - Query params:
   - `tags` (string[], optional; encoded as `tags[]`)
-  - `sort` (string, optional; default: `lastUpdatedAt`; enum: `lastUpdatedAt` | `createdAt` | `name`)
+  - `sort` (string, optional; default: `lastUpdatedAt`; enum: `lastUpdatedAt` (desc) | `createdAt` (asc) | `name` (asc))
 - Response: array of resume summaries (id, name, slug, tags, isPublic, isLocked, createdAt, updatedAt)
 
 ## Get resume by ID

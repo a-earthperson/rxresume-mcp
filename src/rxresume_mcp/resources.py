@@ -36,7 +36,8 @@ TOOL_SEMANTICS_DOC = dedent(
     - get_resume / get_resume_by_username: return full resume objects including
       "data".
     - get_resume_section: returns a focused subtree by section path
-      (basics | summary | picture | metadata | sections.<type> | customSections.<id>).
+      (basics | summary | picture | metadata | sections.<type> |
+      customSections | customSections.<id>).
     - create_resume: always sends tags array (empty allowed); with_sample_data
       maps to "withSampleData".
     - create_resume: returns the created resume id (string).
@@ -53,7 +54,8 @@ TOOL_SEMANTICS_DOC = dedent(
       items by id (built-in sections or a specific custom section).
     - edit_custom_sections: builds JSON Patch ops to add/update/remove custom
       sections by id.
-    - patch_resume: raw JSON Patch escape hatch; validates RFC 6902 shape.
+    - patch_resume: raw JSON Patch escape hatch; validates RFC 6902 shape and
+      auto-injects ids for add ops on items/customSections/customFields when missing.
     - edit_section_items / edit_custom_sections / patch_resume: default response
       is a minimal summary; include_result=true returns the full resume.
     - delete_resume: sends DELETE with an empty JSON body; response may be empty.

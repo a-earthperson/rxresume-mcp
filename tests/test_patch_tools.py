@@ -41,3 +41,26 @@ def test_custom_section_exists():
     data = {"customSections": [{"id": "cs-1"}, {"id": "cs-2"}]}
     assert tools._custom_section_exists(data, "cs-2") is True
     assert tools._custom_section_exists(data, "cs-3") is False
+
+
+def test_auto_id_patch_ops_injects_for_items_and_custom_fields(monkeypatch):
+    first = uuid.UUID("00000000-0000-0000-0000-000000000002")
+    second = uuid.UUID("00000000-0000-0000-0000-000000000003")
+    generated = [first, second]
+    monkeypatch.setattr(tools.uuid, "uuid4", lambda: generated.pop(0))
+    ops = [
+        {
+            "op": "add",
+            "path": "/data/sections/skills/items/-",
+            "value": {"name": "TypeScript"},
+        },
+        {
+            "op": "add",
+            "path": "/data/basics/customFields/-",
+            "value": {"label": "GitHub", "value": "https://github.com/octocat"},
+        },
+    ]
+    normalized, created_ids = tools._auto_id_patch_ops(ops)
+    assert created_ids == [str(first), str(second)]
+    assert normalized[0]["value"]["id"] == str(first)
+    assert normalized[1]["value"]["id"] == str(second)

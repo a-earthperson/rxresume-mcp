@@ -94,7 +94,8 @@ def _require_resume_data(resume: Dict[str, Any]) -> Dict[str, Any]:
 
 def _ensure_section_type(section: str) -> None:
     if section not in patch_ops.SECTION_TYPES:
-        raise ValueError(f"Unknown section type: {section}")
+        allowed = ", ".join(patch_ops.SECTION_TYPES)
+        raise ValueError(f"Unknown section type: {section}. Expected one of: {allowed}")
 
 
 def _find_custom_section(data: Dict[str, Any], custom_section_id: str) -> Dict[str, Any]:
@@ -115,6 +116,93 @@ def _custom_section_exists(data: Dict[str, Any], custom_section_id: str) -> bool
         if isinstance(section, dict) and section.get("id") == custom_section_id:
             return True
     return False
+
+
+def _parse_json_pointer(path: str) -> List[str]:
+    if not path.startswith("/"):
+        return []
+    return [
+        segment.replace("~1", "/").replace("~0", "~")
+        for segment in path[1:].split("/")
+    ]
+
+
+def _auto_id_patch_ops(
+    ops: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    created_ids: List[str] = []
+    normalized_ops: List[Dict[str, Any]] = []
+
+    for op in ops:
+        if op.get("op") == "add":
+            path = op.get("path")
+            value = op.get("value")
+            if isinstance(path, str) and isinstance(value, dict):
+                segments = _parse_json_pointer(path)
+                is_section_item_append = (
+                    len(segments) == 5
+                    and segments[0] == "data"
+                    and segments[1] == "sections"
+                    and segments[3] == "items"
+                    and segments[4] == "-"
+                )
+                is_custom_section_append = (
+                    len(segments) == 3
+                    and segments[0] == "data"
+                    and segments[1] == "customSections"
+                    and segments[2] == "-"
+                )
+                is_custom_section_item_append = (
+                    len(segments) == 6
+                    and segments[0] == "data"
+                    and segments[1] == "customSections"
+                    and segments[2] == "id"
+                    and segments[4] == "items"
+                    and segments[5] == "-"
+                )
+                is_custom_field_append = (
+                    len(segments) == 4
+                    and segments[0] == "data"
+                    and segments[1] == "basics"
+                    and segments[2] == "customFields"
+                    and segments[3] == "-"
+                )
+
+                if (
+                    is_section_item_append
+                    or is_custom_section_append
+                    or is_custom_section_item_append
+                    or is_custom_field_append
+                ):
+                    if not value.get("id"):
+                        new_id = str(uuid.uuid4())
+                        value = dict(value)
+                        value["id"] = new_id
+                        created_ids.append(new_id)
+                        op = dict(op)
+                        op["value"] = value
+        normalized_ops.append(op)
+
+    return normalized_ops, created_ids
+
+
+def _summarize_custom_sections(custom_sections: List[Any]) -> List[Dict[str, Any]]:
+    summaries: List[Dict[str, Any]] = []
+    for section in custom_sections:
+        if not isinstance(section, dict):
+            continue
+        items = section.get("items")
+        summaries.append(
+            {
+                "id": section.get("id"),
+                "title": section.get("title"),
+                "type": section.get("type"),
+                "hidden": section.get("hidden"),
+                "columns": section.get("columns"),
+                "item_count": len(items) if isinstance(items, list) else 0,
+            }
+        )
+    return summaries
 
 
 def _find_item(items: Any, item_id: str) -> Optional[Dict[str, Any]]:
@@ -396,14 +484,18 @@ def register_tools(mcp: FastMCP) -> None:
         name="get_resume_section",
         description=(
             "Fetch a focused resume subtree by section path "
-            "(basics | summary | picture | metadata | sections.<type> | customSections.<id>)."
+            "(basics | summary | picture | metadata | sections.<type> | "
+            "customSections | customSections.<id>)."
         ),
     )
     async def get_resume_section(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
         section_path: str = Field(
-            description="Section path: basics | summary | picture | metadata | sections.<type> | customSections.<id>"
+            description=(
+                "Section path: basics | summary | picture | metadata | sections.<type> | "
+                "customSections | customSections.<id>"
+            )
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
@@ -422,11 +514,17 @@ def register_tools(mcp: FastMCP) -> None:
                 section_type = parts[1]
                 _ensure_section_type(section_type)
                 section_data = data.get("sections", {}).get(section_type)
+            elif parts == ["customSections"]:
+                custom_sections = data.get("customSections")
+                if not isinstance(custom_sections, list):
+                    raise ValueError("Resume customSections is not an array")
+                section_data = _summarize_custom_sections(custom_sections)
             elif len(parts) == 2 and parts[0] == "customSections":
                 section_data = _find_custom_section(data, parts[1])
             else:
                 raise ValueError(
-                    "Invalid section_path. Use basics, summary, sections.<type>, or customSections.<id>."
+                    "Invalid section_path. Use basics, summary, picture, metadata, "
+                    "sections.<type>, customSections, or customSections.<id>."
                 )
 
             if section_data is None:
@@ -680,7 +778,7 @@ def register_tools(mcp: FastMCP) -> None:
     async def patch_resume(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
-        patch: List[Dict[str, Any]] = Field(
+        patch: List[patch_ops.JsonPatchOp] = Field(
             description="JSON Patch operations list (RFC 6902).",
         ),
         include_result: bool = Field(
@@ -691,11 +789,12 @@ def register_tools(mcp: FastMCP) -> None:
         async def _operation(client: RxResumeClient) -> Any:
             _require_resume_object(await client.get_resume(resume_id))
             validated_ops = patch_ops.validate_patch_ops(patch)
-            result = await client.patch_resume(resume_id, patch_ops=validated_ops)
+            normalized_ops, created_ids = _auto_id_patch_ops(validated_ops)
+            result = await client.patch_resume(resume_id, patch_ops=normalized_ops)
             return _build_summary(
                 resume_id,
-                validated_ops,
-                [],
+                normalized_ops,
+                created_ids,
                 include_result=include_result,
                 result=result,
             )
