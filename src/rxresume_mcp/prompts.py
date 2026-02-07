@@ -81,8 +81,11 @@ def register_prompts(mcp: FastMCP) -> None:
                - For section item edits, use edit_section_items.
                - For custom section edits, use edit_custom_sections.
                - For advanced edits, use patch_resume with JSON Patch.
-               - Use update_resume only when you must merge a larger data subtree.
-            6) Re-fetch the resume to confirm the changes applied as intended.
+               - Use update_resume only when you must merge a larger data subtree;
+                 include required ids/hidden fields for any new list entries.
+            6) Verify changes with minimal payload:
+               - Prefer result_section_path on patch tools or get_resume_section.
+               - Use get_resume only when you need the full resume object.
             """
         ).strip()
 

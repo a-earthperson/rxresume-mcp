@@ -59,11 +59,11 @@ All endpoints require `x-api-key` header.
 - Path params:
   - `id` (string, required)
 - Headers:
-  - `Content-Type: application/json`
+  - `Content-Type: application/json-patch+json` (or `application/json`)
 - Body (JSON):
-  - Object: `{ "id": "<resume_id>", "patch": [ ... ] }`
-  - `patch` is a JSON Patch array (RFC 6902). Supports `add`, `replace`, `remove`,
-    `test`, `move`, `copy` and by-id paths for section items and custom sections.
+  - JSON Patch array (RFC 6902). Supports `add`, `replace`, `remove`, `test`,
+    `move`, `copy`, plus RxResume by-id paths for section items/custom sections.
+  - MCP wrapper auto-injects ids for add ops on items/customSections/customFields.
 - Response: updated resume object (same shape as GET /resume/{id})
 
 ## Delete a resume

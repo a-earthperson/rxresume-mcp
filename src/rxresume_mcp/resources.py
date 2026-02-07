@@ -37,10 +37,12 @@ TOOL_SEMANTICS_DOC = dedent(
       "data".
     - get_resume_section: returns a focused subtree by section path
       (basics | summary | picture | metadata | sections.<type> |
-      customSections | customSections.<id>).
+      customSections | customSections.<id>). customSections returns a summary
+      list (id/title/type/hidden/columns/item_count).
     - create_resume: always sends tags array (empty allowed); with_sample_data
       maps to "withSampleData".
     - create_resume: returns the created resume id (string).
+    - create_resume: include_resume=true fetches and returns the full resume.
     - update_resume: requires at least one of name/slug/tags/data; only provided
       name/slug/tags are sent.
     - update_resume: data is validated against the local JSON schema before PUT;
@@ -50,14 +52,33 @@ TOOL_SEMANTICS_DOC = dedent(
       person's name.
     - update_resume: do not send JSON Resume-style keys at the top level
       (education, employment, job_title, etc). Use data.basics and data.sections.
+    - update_resume: when adding or replacing list entries (items/customSections),
+      you must include required fields like id/hidden and all section-required
+      fields. update_resume does not auto-generate ids.
+    - HTML fields (summary.content, item descriptions, metadata.notes) must be
+      HTML strings; use rxresume_html_content_style for guidance.
     - edit_section_items: builds JSON Patch ops to add/update/remove section
-      items by id (built-in sections or a specific custom section).
+      items by id (built-in sections or a specific custom section). Required
+      fields vary by section; consult rxresume://schema/summary.
+    - edit_section_items: prepends https:// on url fields missing a scheme.
+      created_item_ids is returned on add.
     - edit_custom_sections: builds JSON Patch ops to add/update/remove custom
-      sections by id.
-    - patch_resume: raw JSON Patch escape hatch; validates RFC 6902 shape and
-      auto-injects ids for add ops on items/customSections/customFields when missing.
+      sections by id. custom section type must be one of the built-in section types.
+    - edit_custom_sections: include items in the section payload to create in
+      one call; ids are auto-generated when missing.
+    - edit_custom_sections: prepends https:// on url fields missing a scheme.
+      created_custom_section_id/created_item_ids are returned on add.
+    - patch_resume: JSON Patch escape hatch with RxResume extensions (id-based
+      paths and layout normalization). Validates RFC 6902 shape and auto-injects
+      ids for add ops on items/customSections/customFields when missing.
     - edit_section_items / edit_custom_sections / patch_resume: default response
       is a minimal summary; include_result=true returns the full resume.
+      result_section_path returns just a subtree from the patch result.
+    - get_rxresume_docs: returns documentation snippets for tool-only clients;
+      use include_content/include_schema to expand payloads.
+    - get_resume_schema_fragment: returns a summarized schema fragment at a
+      JSON pointer or dot path (depth-controlled). Dot paths traverse properties
+      and array items (e.g., sections.experience, customSections.items).
     - delete_resume: sends DELETE with an empty JSON body; response may be empty.
     - export_resume_pdf / export_resume_screenshot: Accept header set to
       PDF/PNG.
@@ -173,6 +194,20 @@ PATCH_OPS_DOC = dedent(
       /data/customSections/id/<custom_section_id>/...
     - Custom section items:
       /data/customSections/id/<custom_section_id>/items/id/<item_id>/...
+
+    Auto-id injection (MCP wrapper + server normalization)
+    - For add ops on items/customSections/customFields with missing ids, the
+      MCP tool injects a UUID before PATCH.
+    - Paths commonly used for auto-id:
+      /data/sections/<section>/items/-
+      /data/customSections/-
+      /data/customSections/id/<custom_section_id>/items/-
+      /data/basics/customFields/-
+
+    Layout normalization (server-side)
+    - When customSections are added/removed and layout is not explicitly patched,
+      metadata.layout.pages[*].main/sidebar are normalized to include/remove the
+      custom section ids.
 
     Important edge cases
     - Numeric ids are treated as array indexes unless you use the explicit
