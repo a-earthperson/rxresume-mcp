@@ -7,8 +7,7 @@ from typing import Any, Dict, Optional
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from rxresume_mcp import resources as rx_resources
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.rxresume_client import RxResumeClient, _load_resume_schema
 
 from .core import execute_rxresume_operation
 from .schema import _resolve_schema_path, _summarize_schema_node
@@ -65,7 +64,7 @@ def register_schema_tools(mcp: FastMCP) -> None:
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            schema = rx_resources._load_resume_schema()
+            schema = _load_resume_schema()
             node = _resolve_schema_path(schema, path, resolve_refs)
 
             summary = _summarize_schema_node(

@@ -1,31 +1,31 @@
-# Reactive Resume API Endpoints (Resume)
+# Reactive Resume API Endpoints (MCP client usage)
 
 Base URL: `DOMAIN/api/openapi`
 
-All endpoints require `x-api-key` header.
+All endpoints require the `x-api-key` header. `resume_id` values must be UUID
+strings (the MCP client validates before calling the API).
 
-## List all resume tags
-- **GET** `/resume/tags/list`
-- Response: array of strings (tags)
-
-## Get resume statistics
-- **GET** `/resume/statistics/{id}`
-- Path params:
-  - `id` (string, required)
-- Response: `isPublic`, `views`, `downloads`, `lastViewedAt`, `lastDownloadedAt`
+## Endpoints used by the MCP client
 
 ## List all resumes
 - **GET** `/resume/list`
 - Query params:
   - `tags` (string[], optional; encoded as `tags[]`)
-  - `sort` (string, optional; default: `lastUpdatedAt`; enum: `lastUpdatedAt` (desc) | `createdAt` (asc) | `name` (asc))
-- Response: array of resume summaries (id, name, slug, tags, isPublic, isLocked, createdAt, updatedAt)
+  - `sort` (string, optional; enum: `lastUpdatedAt` (desc) | `createdAt` (asc) | `name` (asc))
+- Response: array of resume summaries (API-defined shape; MCP forwards JSON).
 
 ## Get resume by ID
 - **GET** `/resume/{id}`
 - Path params:
-  - `id` (string, required)
-- Response: full resume object including `data`
+  - `id` (string, required; UUID)
+- Response: full resume object including `data`.
+
+## Get resume by username and slug
+- **GET** `/resume/{username}/{slug}`
+- Path params:
+  - `username` (string, required)
+  - `slug` (string, required)
+- Response: resume object including `data`.
 
 ## Create a new resume
 - **POST** `/resume/create`
@@ -34,79 +34,64 @@ All endpoints require `x-api-key` header.
   - `slug` (string, required)
   - `tags` (string[], required; can be empty array)
   - `withSampleData` (boolean, optional; default `false`)
-- Response: created resume ID (string)
-
-## Import a resume
-- **POST** `/resume/import`
-- Body (JSON):
-  - `data` (object, required; see resume schema)
-- Response: imported resume ID (string)
+- Response: created resume ID (string). MCP can optionally fetch the full resume.
 
 ## Update a resume
 - **PUT** `/resume/{id}`
 - Path params:
-  - `id` (string, required)
+  - `id` (string, required; UUID)
 - Body (JSON):
   - `name` (string, optional)
   - `slug` (string, optional)
   - `tags` (string[], optional)
   - `data` (object, optional; full resume data object)
-  - `isPublic` (boolean, optional; not used by MVP script)
-- Response: updated resume object (type not fully specified in docs)
+- MCP behavior:
+  - If `data` is provided, the MCP client fetches the current resume, deep-merges
+    dictionaries, replaces arrays, validates the full merged data against the
+    local JSON schema, then PUTs.
+- Response: updated resume object (API-defined; MCP forwards JSON).
 
 ## Patch a resume
 - **PATCH** `/resume/{id}`
 - Path params:
-  - `id` (string, required)
+  - `id` (string, required; UUID)
 - Headers:
-  - `Content-Type: application/json-patch+json` (or `application/json`)
+  - `Content-Type: application/json` (MCP uses JSON with an `id` wrapper)
 - Body (JSON):
-  - JSON Patch array (RFC 6902). Supports `add`, `replace`, `remove`, `test`,
-    `move`, `copy`, plus RxResume by-id paths for section items/custom sections.
-  - MCP wrapper auto-injects ids for add ops on items/customSections/customFields.
-- Response: updated resume object (same shape as GET /resume/{id})
+  - `{ "id": "<resume_id>", "patch": [ ... RFC 6902 ops ... ] }`
+  - RxResume supports by-id paths for section items/custom sections.
+  - MCP auto-injects ids for add ops that append to:
+    `/data/sections/<section>/items/-`, `/data/customSections/-`,
+    `/data/customSections/id/<custom_section_id>/items/-`,
+    `/data/basics/customFields/-`.
+- Response: updated resume object (same shape as GET /resume/{id}).
 
 ## Delete a resume
 - **DELETE** `/resume/{id}`
 - Path params:
-  - `id` (string, required)
-- Response: unspecified
-
-## Get resume by username and slug
-- **GET** `/resume/{username}/{slug}`
-- Path params:
-  - `username` (string, required)
-  - `slug` (string, required)
-- Response: resume object including `data`
-
-## Set resume locked status
-- **POST** `/resume/{id}/set-locked`
-- Body (JSON):
-  - `isLocked` (boolean, required)
-- Response: unspecified
-
-## Set password on a resume
-- **POST** `/resume/{id}/set-password`
-- Body (JSON):
-  - `password` (string, required; length 6-64)
-- Response: unspecified
-
-## Remove password from a resume
-- **POST** `/resume/{id}/remove-password`
-- Response: unspecified
-
-## Duplicate a resume
-- **POST** `/resume/{id}/duplicate`
-- Body (JSON, optional):
-  - `name` (string, optional)
-  - `slug` (string, optional)
-  - `tags` (string[], optional)
-- Response: duplicated resume ID (string)
+  - `id` (string, required; UUID)
+- Body (JSON): `{}` (MCP sends an empty JSON body)
+- Response: may be empty (MCP returns `None` in the response payload).
 
 ## Export resume as PDF
 - **GET** `/printer/resume/{id}/pdf`
-- Response: `{ "url": "<string>" }`
+- Response:
+  - If the API returns bytes, MCP base64-encodes to
+    `{ content_type, content_base64, size_bytes }`.
+  - If the API returns JSON/text, MCP forwards it as-is.
 
 ## Get resume screenshot
 - **GET** `/printer/resume/{id}/screenshot`
-- Response: `{ "url": "<string>" }`
+- Response: same behavior as PDF export (bytes -> base64; JSON/text forwarded).
+
+## Other known endpoints (not wrapped by MCP tools)
+
+These are present in the upstream API but are not used by this MCP client:
+
+- **GET** `/resume/tags/list`
+- **GET** `/resume/statistics/{id}`
+- **POST** `/resume/import`
+- **POST** `/resume/{id}/set-locked`
+- **POST** `/resume/{id}/set-password`
+- **POST** `/resume/{id}/remove-password`
+- **POST** `/resume/{id}/duplicate`

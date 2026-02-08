@@ -63,7 +63,7 @@ ollama pull qwen2.5:7b
 ollmcp --servers-json examples/with-ollmcp/servers.json --model qwen2.5:7b
 ```
 
-4) In the TUI, confirm tools are available and try a call like `list_resumes`.
+4) In the TUI, confirm tools are available and try a call like `resume.list`.
 
 ## Notes
 

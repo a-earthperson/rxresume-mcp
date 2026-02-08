@@ -52,15 +52,38 @@ def _load_resume_schema() -> Dict[str, Any]:
     return json.loads(schema_path.read_text(encoding="utf-8"))
 
 
-@lru_cache(maxsize=1)
-def _resume_schema_validator() -> Draft202012Validator:
+def _make_basics_fields_optional(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a schema copy with basics.* fields marked optional."""
+    if not isinstance(schema, dict):
+        return schema
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return dict(schema)
+    basics = properties.get("basics")
+    if not isinstance(basics, dict):
+        return dict(schema)
+    relaxed = dict(schema)
+    relaxed_properties = dict(properties)
+    relaxed_basics = dict(basics)
+    relaxed_basics.pop("required", None)
+    relaxed_properties["basics"] = relaxed_basics
+    relaxed["properties"] = relaxed_properties
+    return relaxed
+
+
+@lru_cache(maxsize=2)
+def _resume_schema_validator(
+    relax_basics_required: bool = False,
+) -> Draft202012Validator:
     schema = _load_resume_schema()
+    if relax_basics_required:
+        schema = _make_basics_fields_optional(schema)
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
 
 COMMON_DATA_FIELD_HINTS: Dict[str, str] = {
-    "name": "data.basics.name (resume title is update_resume.name)",
+    "name": "data.basics.name (resume title is resume.update.name)",
     "job_title": "data.basics.headline",
     "headline": "data.basics.headline",
     "email": "data.basics.email",
@@ -145,7 +168,8 @@ def _format_validation_errors(
 def _validate_resume_data(data: Dict[str, Any]) -> None:
     try:
         schema = _load_resume_schema()
-        validator = _resume_schema_validator()
+        schema = _make_basics_fields_optional(schema)
+        validator = _resume_schema_validator(relax_basics_required=True)
     except (FileNotFoundError, json.JSONDecodeError, SchemaError) as exc:
         raise ValueError(f"Resume schema unavailable or invalid: {exc}") from exc
 

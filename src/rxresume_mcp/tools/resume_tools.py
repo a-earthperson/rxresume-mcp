@@ -16,7 +16,7 @@ def register_resume_tools(mcp: FastMCP) -> None:
     """Register tools that operate on entire resumes."""
 
     @mcp.tool(
-        name="list_resumes",
+        name="resume.doc.list",
         description="List resumes, optionally filtering by tags and sort order",
     )
     async def list_resumes(
@@ -34,12 +34,12 @@ def register_resume_tools(mcp: FastMCP) -> None:
             return await client.list_resumes(tags=tags, sort=sort)
 
         return await execute_rxresume_operation(
-            operation_name="list resumes",
+            operation_name="resume.list",
             operation_func=_operation,
             ctx=ctx,
         )
 
-    @mcp.tool(name="get_resume", description="Fetch a resume by ID")
+    @mcp.tool(name="resume.doc.get", description="Fetch a resume by ID")
     async def get_resume(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
@@ -48,13 +48,13 @@ def register_resume_tools(mcp: FastMCP) -> None:
             return await client.get_resume(resume_id=resume_id)
 
         return await execute_rxresume_operation(
-            operation_name=f"get resume: {resume_id}",
+            operation_name=f"resume.get: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
         )
 
     @mcp.tool(
-        name="get_resume_by_username",
+        name="resume.doc.get.by_username",
         description="Fetch a resume by username and slug",
     )
     async def get_resume_by_username(
@@ -66,12 +66,12 @@ def register_resume_tools(mcp: FastMCP) -> None:
             return await client.get_resume_by_username(username=username, slug=slug)
 
         return await execute_rxresume_operation(
-            operation_name=f"get resume by username: {username}/{slug}",
+            operation_name=f"resume.get_by_username: {username}/{slug}",
             operation_func=_operation,
             ctx=ctx,
         )
 
-    @mcp.tool(name="create_resume", description="Create a new resume")
+    @mcp.tool(name="resume.doc.create", description="Create a new resume")
     async def create_resume(
         ctx: Context,
         name: str = Field(description="Resume name"),
@@ -81,11 +81,7 @@ def register_resume_tools(mcp: FastMCP) -> None:
         ),
         with_sample_data: bool = Field(
             description="If true, include sample data on creation", default=False
-        ),
-        include_resume: bool = Field(
-            description="If true, fetch and return the created resume object.",
-            default=False,
-        ),
+        )
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             resume_id = await client.create_resume(
@@ -94,18 +90,16 @@ def register_resume_tools(mcp: FastMCP) -> None:
                 tags=tags,
                 with_sample_data=with_sample_data,
             )
-            if not include_resume:
-                return resume_id
             resume = await client.get_resume(resume_id=resume_id)
             return {"resume_id": resume_id, "resume": resume}
 
         return await execute_rxresume_operation(
-            operation_name=f"create resume: {name}",
+            operation_name=f"resume.create: {name}",
             operation_func=_operation,
             ctx=ctx,
         )
 
-    @mcp.tool(name="update_resume", description="Update a resume by ID")
+    @mcp.tool(name="resume.doc.update", description="Update a resume by ID")
     async def update_resume(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
@@ -143,12 +137,12 @@ def register_resume_tools(mcp: FastMCP) -> None:
             )
 
         return await execute_rxresume_operation(
-            operation_name=f"update resume: {resume_id}",
+            operation_name=f"resume.update: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
         )
 
-    @mcp.tool(name="delete_resume", description="Delete a resume by ID")
+    @mcp.tool(name="resume.doc.delete", description="Delete a resume by ID")
     async def delete_resume(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
@@ -157,12 +151,12 @@ def register_resume_tools(mcp: FastMCP) -> None:
             return await client.delete_resume(resume_id=resume_id)
 
         return await execute_rxresume_operation(
-            operation_name=f"delete resume: {resume_id}",
+            operation_name=f"resume.delete: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
         )
 
-    @mcp.tool(name="export_resume_pdf", description="Export resume as PDF")
+    @mcp.tool(name="resume.export.pdf", description="Export resume as PDF")
     async def export_resume_pdf(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
@@ -171,12 +165,14 @@ def register_resume_tools(mcp: FastMCP) -> None:
             return await client.export_resume_pdf(resume_id=resume_id)
 
         return await execute_rxresume_operation(
-            operation_name=f"export resume pdf: {resume_id}",
+            operation_name=f"resume.export_pdf: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
         )
 
-    @mcp.tool(name="export_resume_screenshot", description="Export resume screenshot")
+    @mcp.tool(
+        name="resume.export.screenshot", description="Export resume screenshot"
+    )
     async def export_resume_screenshot(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
@@ -185,7 +181,7 @@ def register_resume_tools(mcp: FastMCP) -> None:
             return await client.export_resume_screenshot(resume_id=resume_id)
 
         return await execute_rxresume_operation(
-            operation_name=f"export resume screenshot: {resume_id}",
+            operation_name=f"resume.export_screenshot: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
         )

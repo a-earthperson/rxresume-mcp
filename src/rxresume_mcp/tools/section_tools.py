@@ -214,7 +214,7 @@ def register_section_tools(mcp: FastMCP) -> None:
     @mcp.tool(
         name="edit_custom_sections",
         description=(
-            "Add/update/remove custom sections using JSON Patch (type is fixed). "
+            "Add/update/remove custom sections using JSON Patch (type must be valid). "
             "You can include items on add and omit ids to auto-generate."
         ),
     )
