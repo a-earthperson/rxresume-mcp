@@ -12,6 +12,52 @@ from rxresume_mcp.rxresume_client import RxResumeClient
 from .core import execute_rxresume_operation, format_response
 
 
+def _build_resume_list_params(
+    tags: List[str], sort: Optional[str]
+) -> Dict[str, Any]:
+    return {"tags": tags, "sort": sort}
+
+
+def _reshape_resume_list(payload: Any) -> Any:
+    return payload
+
+
+def _reshape_resume(payload: Any) -> Any:
+    return payload
+
+
+def _prepare_resume_create_payload(
+    name: str, slug: str, tags: List[str], with_sample_data: bool
+) -> Dict[str, Any]:
+    return {
+        "name": name,
+        "slug": slug,
+        "tags": tags,
+        "with_sample_data": with_sample_data,
+    }
+
+
+def _apply_resume_create_defaults(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return dict(payload)
+
+
+def _build_resume_update_payload(
+    name: Optional[str],
+    slug: Optional[str],
+    tags: Optional[List[str]],
+    data: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    return {"name": name, "slug": slug, "tags": tags, "data_patch": data}
+
+
+def _apply_resume_update_defaults(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return dict(payload)
+
+
+def _reshape_resume_create_response(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return payload
+
+
 def register_resume_tools(mcp: FastMCP) -> None:
     """Register tools that operate on entire resumes."""
 
@@ -31,7 +77,9 @@ def register_resume_tools(mcp: FastMCP) -> None:
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.list_resumes(tags=tags, sort=sort)
+            params = _build_resume_list_params(tags, sort)
+            result = await client.list_resumes(**params)
+            return _reshape_resume_list(result)
 
         return await execute_rxresume_operation(
             operation_name="resume.list",
@@ -45,7 +93,8 @@ def register_resume_tools(mcp: FastMCP) -> None:
         resume_id: str = Field(description="Resume ID"),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.get_resume(resume_id=resume_id)
+            result = await client.get_resume(resume_id=resume_id)
+            return _reshape_resume(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.get: {resume_id}",
@@ -63,7 +112,10 @@ def register_resume_tools(mcp: FastMCP) -> None:
         slug: str = Field(description="Resume slug"),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.get_resume_by_username(username=username, slug=slug)
+            result = await client.get_resume_by_username(
+                username=username, slug=slug
+            )
+            return _reshape_resume(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.get_by_username: {username}/{slug}",
@@ -84,14 +136,20 @@ def register_resume_tools(mcp: FastMCP) -> None:
         )
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            resume_id = await client.create_resume(
+            payload = _prepare_resume_create_payload(
                 name=name,
                 slug=slug,
                 tags=tags,
                 with_sample_data=with_sample_data,
             )
+            payload = _apply_resume_create_defaults(payload)
+            resume_id = await client.create_resume(**payload)
             resume = await client.get_resume(resume_id=resume_id)
-            return {"resume_id": resume_id, "resume": resume}
+            response = {
+                "resume_id": resume_id,
+                "resume": _reshape_resume(resume),
+            }
+            return _reshape_resume_create_response(response)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.create: {name}",
@@ -128,13 +186,17 @@ def register_resume_tools(mcp: FastMCP) -> None:
             )
 
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.update_resume_with_patch(
-                resume_id=resume_id,
+            payload = _build_resume_update_payload(
                 name=name,
                 slug=slug,
                 tags=tags,
-                data_patch=data,
+                data=data,
             )
+            payload = _apply_resume_update_defaults(payload)
+            result = await client.update_resume_with_patch(
+                resume_id=resume_id, **payload
+            )
+            return _reshape_resume(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.update: {resume_id}",
@@ -148,7 +210,8 @@ def register_resume_tools(mcp: FastMCP) -> None:
         resume_id: str = Field(description="Resume ID"),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.delete_resume(resume_id=resume_id)
+            result = await client.delete_resume(resume_id=resume_id)
+            return _reshape_resume(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.delete: {resume_id}",
@@ -162,7 +225,8 @@ def register_resume_tools(mcp: FastMCP) -> None:
         resume_id: str = Field(description="Resume ID"),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.export_resume_pdf(resume_id=resume_id)
+            result = await client.export_resume_pdf(resume_id=resume_id)
+            return _reshape_resume(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.export_pdf: {resume_id}",
@@ -178,7 +242,8 @@ def register_resume_tools(mcp: FastMCP) -> None:
         resume_id: str = Field(description="Resume ID"),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.export_resume_screenshot(resume_id=resume_id)
+            result = await client.export_resume_screenshot(resume_id=resume_id)
+            return _reshape_resume(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.export_screenshot: {resume_id}",
