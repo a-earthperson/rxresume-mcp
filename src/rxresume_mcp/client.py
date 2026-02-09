@@ -89,7 +89,7 @@ COMMON_DATA_FIELD_HINTS: Dict[str, str] = {
     "email": "data.basics.email",
     "phone": "data.basics.phone",
     "location": "data.basics.location",
-    "website": "data.basics.website.url/label",
+    "website": "data.basics.website.url",
     "summary": "data.summary.content (HTML string)",
     "notes": "data.metadata.notes (HTML string)",
     "social_media": "data.sections.profiles.items or data.basics.customFields",

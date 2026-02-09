@@ -13,7 +13,6 @@ from .field_adapters import (
     WebsiteFieldAdapter,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
-from .tool_helpers import WebsiteInput
 
 
 SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
@@ -67,7 +66,7 @@ EDUCATION_FIELDS = [
     ),
     FieldSpec(
         name="url",
-        field_type=WebsiteInput,
+        field_type=str,
         alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"

@@ -12,7 +12,6 @@ from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
 from .item_spec import FieldSpec, MappedPatchTarget, build_object_model, build_spec
 from .sections import _extract_section_data
 from .section_item_tools import register_object_tools
-from .tool_helpers import WebsiteInputLike
 
 
 BASICS_FIELDS = [
@@ -54,7 +53,7 @@ BASICS_FIELDS = [
     ),
     FieldSpec(
         name="url",
-        field_type=WebsiteInputLike,
+        field_type=str,
         alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
@@ -84,7 +83,7 @@ BASICS_RESET = BasicsInput(
     email="",
     phone="",
     location="",
-    url={"url": "", "label": ""},
+    url="",
     summary="",
 )
 
@@ -113,7 +112,7 @@ def register_basics_tools(mcp: FastMCP) -> None:
         payload_type=BasicsInput,
         payload_description=(
             "Basics object with any subset of fields to update. "
-            "url accepts a string or {url,label} (alias: website)."
+            "url accepts a string (alias: website)."
         ),
         build_payload=_build_basics_payload,
         extra_update_ops=lambda _payload: [

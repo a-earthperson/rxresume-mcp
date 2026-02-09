@@ -28,13 +28,19 @@ class WebsiteFieldAdapter:
     server_key: str = "website"
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize website input and write to the server key."""
-        value = payload.pop(self.input_key, None)
-        payload[self.server_key] = normalize_website_payload(value)
+        if self.input_key in payload:
+            value = payload.pop(self.input_key)
+            payload[self.server_key] = normalize_website_payload(value)
+            return
+        payload.setdefault(self.server_key, normalize_website_payload(None))
 
-    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
+    def reshape(self, payload: Dict[str, Any]) -> Dict[str, str]:
         """Return a response-ready website payload."""
-        value = payload.get(self.server_key) or normalize_website_payload(None)
-        return {self.response_key: value}
+        value = payload.get(self.server_key)
+        normalized = normalize_website_payload(value)
+        if normalized["url"] is None or normalized["url"] == "":
+            return {}
+        return {self.response_key: normalized["url"]}
 
     def build_update_ops(
         self, payload: Dict[str, Any], target: PatchTarget
@@ -44,17 +50,14 @@ class WebsiteFieldAdapter:
             return []
         website_payload = normalize_website_for_patch(payload.pop(self.input_key))
         base = target.field_path(self.server_key)
-        return [
-            patch_ops.op_replace(f"{base}/{key}", value)
-            for key, value in website_payload.items()
-        ]
+        return [patch_ops.op_replace(f"{base}/url", website_payload["url"])]
 
     @staticmethod
     def normalize_input(
             value: Optional[WebsiteInputLike]
-    ) -> Dict[str, str]:
+    ) -> str:
         """Normalize a website input for direct patch usage."""
-        return normalize_website_for_patch(value)
+        return normalize_website_for_patch(value)["url"]
 
 
 @dataclass(frozen=True)
@@ -64,7 +67,7 @@ class ScalarFieldAdapter:
     input_key: str
     response_key: str
     server_key: str
-    default: Any = ""
+    default: Any = None
     input_transform: Callable[[Any], Any] | None = None
     response_transform: Callable[[Any], Any] | None = None
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
@@ -80,10 +83,12 @@ class ScalarFieldAdapter:
     def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Return a response-ready scalar payload."""
         value = payload.get(self.server_key, self.default)
-        if value is None:
-            value = self.default
+        if value is None or value == "" or value == " ":
+            return {}
+
         if self.response_transform is not None:
             value = self.response_transform(value)
+
         return {self.response_key: value}
 
     def build_update_ops(
@@ -153,10 +158,12 @@ class SummaryHighlightsFieldAdapter:
         summary, highlights = split_summary_highlights_description(
             payload.get(self.server_key)
         )
-        return {
-            self.response_summary_key: summary or "",
-            self.response_highlights_key: highlights or [],
-        }
+        to_return = {}
+        if summary:
+            to_return[self.response_summary_key] = summary
+        if highlights and len(highlights) > 0:
+            to_return[self.response_highlights_key] = highlights
+        return to_return
 
     def build_update_ops(
         self, payload: Dict[str, Any], target: PatchTarget

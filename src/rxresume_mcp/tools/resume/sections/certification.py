@@ -9,7 +9,6 @@ from mcp.server.fastmcp import FastMCP
 from .section_item_tools import register_section_item_tools
 from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
-from .tool_helpers import WebsiteInput
 
 
 CERTIFICATION_FIELDS = [
@@ -46,7 +45,7 @@ CERTIFICATION_FIELDS = [
     ),
     FieldSpec(
         name="url",
-        field_type=WebsiteInput,
+        field_type=str,
         alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
