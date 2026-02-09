@@ -5,7 +5,11 @@ from __future__ import annotations
 import uuid as uuid
 
 from .core import AppContext, app_lifespan, execute_rxresume_operation, format_response, _encode_binary
-from .normalize import _URL_SCHEME_RE, _normalize_url, _normalize_url_fields
+from .resume.sections.normalize import (
+    _URL_SCHEME_RE,
+    _normalize_url,
+    _normalize_url_fields,
+)
 from .patching import _auto_id_patch_ops, _build_summary
 from .pointers import _parse_json_pointer
 from .registry import register_tools
@@ -17,7 +21,7 @@ from .schema import (
     _resolve_schema_ref,
     _summarize_schema_node,
 )
-from .sections import (
+from .resume.sections.sections import (
     _custom_section_exists,
     _ensure_custom_section_type,
     _ensure_item_id,

@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, cast
 from mcp.server.fastmcp import Context, FastMCP
 
 from rxresume_mcp import config
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.client import RxResumeClient
 
 logger = logging.getLogger(__name__)
 

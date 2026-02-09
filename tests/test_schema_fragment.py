@@ -1,4 +1,4 @@
-from rxresume_mcp.rxresume_client import _load_resume_schema
+from rxresume_mcp.client import _load_resume_schema
 from rxresume_mcp import tools
 
 

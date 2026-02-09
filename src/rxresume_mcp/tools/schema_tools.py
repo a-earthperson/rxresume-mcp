@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from rxresume_mcp.rxresume_client import RxResumeClient, _load_resume_schema
+from rxresume_mcp.client import RxResumeClient, _load_resume_schema
 
 from .core import execute_rxresume_operation
 from .schema import _resolve_schema_path, _summarize_schema_node

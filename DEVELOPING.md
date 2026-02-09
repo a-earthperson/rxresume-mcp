@@ -141,3 +141,9 @@ After changing dependencies in `pyproject.toml`, regenerate the lockfile:
 ```bash
 uv lock
 ```
+
+## Follow-up refactors
+
+- Consolidate the repeated `resume.section.*` tool implementations into a shared
+  factory/helper (registration, item reshape, update ops). The existing helpers
+  in `src/rxresume_mcp/tools/section_item_tools.py` are a good starting point.

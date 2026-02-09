@@ -8,11 +8,11 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
 from rxresume_mcp import patch_ops
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.client import RxResumeClient
 
 from .core import execute_rxresume_operation
 from .patching import _auto_id_patch_ops, _build_summary
-from .sections import _extract_section_data, _require_resume_object
+from .resume.sections.sections import _extract_section_data, _require_resume_object
 
 
 def register_patch_tools(mcp: FastMCP) -> None:

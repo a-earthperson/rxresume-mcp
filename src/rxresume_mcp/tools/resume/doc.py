@@ -1,4 +1,4 @@
-"""Register resume CRUD and export tools."""
+"""Register resume document tools."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.client import RxResumeClient
 
-from .core import execute_rxresume_operation, format_response
+from ..core import execute_rxresume_operation, format_response
+from .common import _reshape_resume
 
 
 def _build_resume_list_params(
@@ -19,10 +20,6 @@ def _build_resume_list_params(
 
 
 def _reshape_resume_list(payload: Any) -> Any:
-    return payload
-
-
-def _reshape_resume(payload: Any) -> Any:
     return payload
 
 
@@ -58,8 +55,8 @@ def _reshape_resume_create_response(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
-def register_resume_tools(mcp: FastMCP) -> None:
-    """Register tools that operate on entire resumes."""
+def register_resume_doc_tools(mcp: FastMCP) -> None:
+    """Register tools that operate on resume documents."""
 
     @mcp.tool(
         name="resume.doc.list",
@@ -102,27 +99,6 @@ def register_resume_tools(mcp: FastMCP) -> None:
             ctx=ctx,
         )
 
-    @mcp.tool(
-        name="resume.doc.get.by_username",
-        description="Fetch a resume by username and slug",
-    )
-    async def get_resume_by_username(
-        ctx: Context,
-        username: str = Field(description="Username"),
-        slug: str = Field(description="Resume slug"),
-    ) -> Dict[str, Any]:
-        async def _operation(client: RxResumeClient) -> Any:
-            result = await client.get_resume_by_username(
-                username=username, slug=slug
-            )
-            return _reshape_resume(result)
-
-        return await execute_rxresume_operation(
-            operation_name=f"resume.get_by_username: {username}/{slug}",
-            operation_func=_operation,
-            ctx=ctx,
-        )
-
     @mcp.tool(name="resume.doc.create", description="Create a new resume")
     async def create_resume(
         ctx: Context,
@@ -133,7 +109,7 @@ def register_resume_tools(mcp: FastMCP) -> None:
         ),
         with_sample_data: bool = Field(
             description="If true, include sample data on creation", default=False
-        )
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             payload = _prepare_resume_create_payload(
@@ -170,12 +146,8 @@ def register_resume_tools(mcp: FastMCP) -> None:
             description="Tags to set (pass [] to clear)", default=None
         ),
         data: Optional[Dict[str, Any]] = Field(
-            description=(
-                "Resume data patch merged into existing data. Must conform to the "
-                "RxResume schema; top-level keys: picture, basics, summary, "
-                "sections, customSections, metadata. Use data.basics.* for person "
-                "info. See rxresume://schema/summary."
-            ),
+            # TODO:: Add a meaningful description
+            description="", 
             default=None,
         ),
     ) -> Dict[str, Any]:
@@ -215,38 +187,6 @@ def register_resume_tools(mcp: FastMCP) -> None:
 
         return await execute_rxresume_operation(
             operation_name=f"resume.delete: {resume_id}",
-            operation_func=_operation,
-            ctx=ctx,
-        )
-
-    @mcp.tool(name="resume.export.pdf", description="Export resume as PDF")
-    async def export_resume_pdf(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-    ) -> Dict[str, Any]:
-        async def _operation(client: RxResumeClient) -> Any:
-            result = await client.export_resume_pdf(resume_id=resume_id)
-            return _reshape_resume(result)
-
-        return await execute_rxresume_operation(
-            operation_name=f"resume.export_pdf: {resume_id}",
-            operation_func=_operation,
-            ctx=ctx,
-        )
-
-    @mcp.tool(
-        name="resume.export.screenshot", description="Export resume screenshot"
-    )
-    async def export_resume_screenshot(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-    ) -> Dict[str, Any]:
-        async def _operation(client: RxResumeClient) -> Any:
-            result = await client.export_resume_screenshot(resume_id=resume_id)
-            return _reshape_resume(result)
-
-        return await execute_rxresume_operation(
-            operation_name=f"resume.export_screenshot: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
         )

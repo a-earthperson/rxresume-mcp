@@ -8,12 +8,12 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
 from rxresume_mcp import patch_ops
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.client import RxResumeClient
 
 from .core import execute_rxresume_operation
-from .normalize import _normalize_url_fields
+from .resume.sections.normalize import _normalize_url_fields
 from .patching import _build_summary
-from .sections import (
+from .resume.sections.sections import (
     _custom_section_exists,
     _ensure_custom_section_type,
     _ensure_item_id,

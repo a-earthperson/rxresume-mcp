@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar
 from pydantic import BaseModel
 
 from rxresume_mcp import patch_ops
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.client import RxResumeClient
 
 from .normalize import _normalize_url_fields
 from .sections import _extract_section_data, _require_resume_object

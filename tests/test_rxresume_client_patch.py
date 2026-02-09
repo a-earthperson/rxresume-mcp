@@ -3,7 +3,7 @@ import json
 
 import httpx
 
-from rxresume_mcp.rxresume_client import RxResumeClient
+from rxresume_mcp.client import RxResumeClient
 
 
 def test_patch_resume_sets_content_type_and_payload():

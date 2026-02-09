@@ -1,6 +1,6 @@
 import pytest
 
-from rxresume_mcp import rxresume_client
+from rxresume_mcp import client
 
 
 def _base_section(title: str) -> dict:
