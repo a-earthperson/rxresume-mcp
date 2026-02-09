@@ -12,6 +12,7 @@ from .section_item_tools import (
     ensure_non_empty_string,
     split_summary_highlights_description,
 )
+from .item_spec import PatchTarget
 from .tool_helpers import (
     WebsiteInputLike,
     normalize_website_for_patch,
@@ -26,8 +27,6 @@ class WebsiteFieldAdapter:
     input_key: str = "url"
     response_key: str = "url"
     server_key: str = "website"
-    path_builder: Callable[[str, str, str], str] = patch_ops.path_section_item_field
-
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize website input and write to the server key."""
         value = payload.pop(self.input_key, None)
@@ -39,13 +38,13 @@ class WebsiteFieldAdapter:
         return {self.response_key: value}
 
     def build_update_ops(
-        self, section: str, item_id: str, payload: Dict[str, Any]
+        self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         """Build patch ops for website updates."""
         if self.input_key not in payload:
             return []
         website_payload = normalize_website_for_patch(payload.pop(self.input_key))
-        base = self.path_builder(section, item_id, self.server_key)
+        base = target.field_path(self.server_key)
         return [
             patch_ops.op_replace(f"{base}/{key}", value)
             for key, value in website_payload.items()
@@ -68,8 +67,6 @@ class ScalarFieldAdapter:
     default: Any = ""
     input_transform: Callable[[Any], Any] | None = None
     response_transform: Callable[[Any], Any] | None = None
-    path_builder: Callable[[str, str, str], str] = patch_ops.path_section_item_field
-
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize a scalar input and write to the server key."""
         if self.input_key in payload:
@@ -90,7 +87,7 @@ class ScalarFieldAdapter:
         return {self.response_key: value}
 
     def build_update_ops(
-        self, section: str, item_id: str, payload: Dict[str, Any]
+        self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         """Build patch ops for scalar field updates."""
         if self.input_key not in payload:
@@ -98,7 +95,7 @@ class ScalarFieldAdapter:
         value = payload.pop(self.input_key)
         if self.input_transform is not None:
             value = self.input_transform(value)
-        path = self.path_builder(section, item_id, self.server_key)
+        path = target.field_path(self.server_key)
         return [patch_ops.op_replace(path, value)]
 
 
@@ -120,7 +117,7 @@ class SuppressedFieldAdapter:
         return {}
 
     def build_update_ops(
-        self, section: str, item_id: str, payload: Dict[str, Any]
+        self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         """No update ops for hidden fields."""
         return []
@@ -135,8 +132,6 @@ class SummaryHighlightsFieldAdapter:
     response_summary_key: str = "summary"
     response_highlights_key: str = "highlights"
     server_key: str = "description"
-    path_builder: Callable[[str, str, str], str] = patch_ops.path_section_item_field
-
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize summary/highlights input into the description field."""
         summary_present = self.summary_key in payload
@@ -164,7 +159,7 @@ class SummaryHighlightsFieldAdapter:
         }
 
     def build_update_ops(
-        self, section: str, item_id: str, payload: Dict[str, Any]
+        self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         """Build patch ops for description updates."""
         summary_present = self.summary_key in payload
@@ -176,5 +171,5 @@ class SummaryHighlightsFieldAdapter:
             payload.pop(self.highlights_key, None) if highlights_present else None
         )
         description = build_summary_highlights_description(summary, highlights)
-        path = self.path_builder(section, item_id, self.server_key)
+        path = target.field_path(self.server_key)
         return [patch_ops.op_replace(path, description)]

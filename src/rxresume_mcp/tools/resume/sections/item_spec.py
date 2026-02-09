@@ -1,22 +1,55 @@
-"""Shared item spec wiring."""
+"""Shared spec wiring."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Protocol, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
+from rxresume_mcp import patch_ops
+
+
+class PatchTarget(Protocol):
+    """Protocol for resolving patch paths for fields."""
+
+    def field_path(self, field: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class MappedPatchTarget:
+    """Patch target with explicit field path overrides."""
+
+    default_builder: Callable[[str], str]
+    overrides: Mapping[str, str] = field(default_factory=dict)
+
+    def field_path(self, field: str) -> str:
+        override = self.overrides.get(field)
+        if override is not None:
+            return override
+        return self.default_builder(field)
+
+
+@dataclass(frozen=True)
+class SectionItemPatchTarget:
+    """Patch target for section item fields."""
+
+    section: str
+    item_id: str
+
+    def field_path(self, field: str) -> str:
+        return patch_ops.path_section_item_field(self.section, self.item_id, field)
+
 
 class FieldAdapter(Protocol):
-    """Protocol for field adapters used by ItemSpec."""
+    """Protocol for field adapters used by specs."""
 
     def apply_defaults(self, payload: Dict[str, Any]) -> None: ...
 
     def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]: ...
 
     def build_update_ops(
-        self, section: str, item_id: str, payload: Dict[str, Any]
+        self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]: ...
 
 
@@ -28,66 +61,14 @@ class FieldSpec:
     field_type: Any
     adapter: FieldAdapter
     alias: str | None = None
-    source_path: Sequence[str] | None = None
-    source_getter: Callable[[Dict[str, Any]], Any] | None = None
-    source_key: str | None = None
 
 
 @dataclass(frozen=True)
-class ItemSpec:
-    """Specification for mapping item payloads to/from MCP data."""
-
-    key: str
-    adapters: Sequence[FieldAdapter]
-
-    def apply_defaults(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply adapter defaults and return a normalized payload."""
-        normalized = dict(payload)
-        for adapter in self.adapters:
-            adapter.apply_defaults(normalized)
-        return normalized
-
-    def reshape_item(self, payload: Any) -> Any:
-        """Return a response-ready item payload."""
-        if not isinstance(payload, dict):
-            return payload
-        normalized: Dict[str, Any] = {"id": payload.get("id")}
-        for adapter in self.adapters:
-            normalized.update(adapter.reshape(payload))
-        return normalized
-
-    def reshape_items(self, payload: Any) -> Any:
-        """Return a response-ready items payload."""
-        if isinstance(payload, list):
-            return [self.reshape_item(item) for item in payload]
-        return payload
-
-    def build_update_ops(
-        self, item_id: str, payload: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Build patch ops for item updates."""
-        ops: List[Dict[str, Any]] = []
-        for adapter in self.adapters:
-            ops.extend(adapter.build_update_ops(self.key, item_id, payload))
-        if payload:
-            raise ValueError(
-                f"Unexpected fields in {self.key} update: {sorted(payload)}"
-            )
-        if not ops:
-            raise ValueError(f"No fields provided to update for item id: {item_id}")
-        return ops
-
-
-@dataclass(frozen=True)
-class ObjectSpec:
+class Spec:
     """Specification for mapping object payloads to/from MCP data."""
 
     name: str
-    field_specs: Sequence[FieldSpec]
     adapters: Sequence[FieldAdapter]
-    source_root: Sequence[str] | None = None
-    context_section: str = ""
-    context_item_id: str = ""
 
     def apply_defaults(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Apply adapter defaults and return a normalized payload."""
@@ -105,30 +86,13 @@ class ObjectSpec:
             normalized.update(adapter.reshape(payload))
         return normalized
 
-    def build_payload(self, resume: Dict[str, Any]) -> Dict[str, Any]:
-        """Build a server-keyed payload from a resume document."""
-        if not isinstance(resume, dict):
-            return {}
-        payload: Dict[str, Any] = {}
-        for spec in self.field_specs:
-            value = _resolve_source_value(resume, spec, self.source_root)
-            if value is _MISSING:
-                continue
-            payload_key = _resolve_payload_key(spec)
-            payload[payload_key] = value
-        return payload
-
-    def reshape_resume(self, resume: Dict[str, Any]) -> Any:
-        """Return a response-ready object payload from a resume document."""
-        return self.reshape(self.build_payload(resume))
-
-    def build_update_ops(self, payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Build patch ops for object updates."""
+    def build_update_ops(
+        self, payload: Dict[str, Any], target: PatchTarget
+    ) -> List[Dict[str, Any]]:
+        """Build patch ops for updates."""
         ops: List[Dict[str, Any]] = []
         for adapter in self.adapters:
-            ops.extend(
-                adapter.build_update_ops(self.context_section, self.context_item_id, payload)
-            )
+            ops.extend(adapter.build_update_ops(payload, target))
         if payload:
             raise ValueError(
                 f"Unexpected fields in {self.name} update: {sorted(payload)}"
@@ -136,6 +100,51 @@ class ObjectSpec:
         if not ops:
             raise ValueError(f"No fields provided to update for {self.name}.")
         return ops
+
+
+@dataclass(frozen=True)
+class ItemSpec:
+    """Specification for mapping item payloads to/from MCP data."""
+
+    key: str
+    spec: Spec
+
+    @property
+    def adapters(self) -> Sequence[FieldAdapter]:
+        return self.spec.adapters
+
+    def apply_defaults(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply adapter defaults and return a normalized payload."""
+        return self.spec.apply_defaults(payload)
+
+    def reshape_item(self, payload: Any) -> Any:
+        """Return a response-ready item payload."""
+        if not isinstance(payload, dict):
+            return payload
+        normalized: Dict[str, Any] = {"id": payload.get("id")}
+        normalized.update(self.spec.reshape(payload))
+        return normalized
+
+    def reshape_items(self, payload: Any) -> Any:
+        """Return a response-ready items payload."""
+        if isinstance(payload, list):
+            return [self.reshape_item(item) for item in payload]
+        return payload
+
+    def build_update_ops(
+        self, item_id: str, payload: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """Build patch ops for item updates."""
+        target = SectionItemPatchTarget(section=self.key, item_id=item_id)
+        try:
+            return self.spec.build_update_ops(payload, target)
+        except ValueError as exc:
+            message = str(exc)
+            if message.startswith("No fields provided to update for"):
+                raise ValueError(
+                    f"No fields provided to update for item id: {item_id}"
+                ) from exc
+            raise
 
 
 def build_item_model(
@@ -196,66 +205,9 @@ def build_object_model(
 
 def build_item_spec(key: str, field_specs: Sequence[FieldSpec]) -> ItemSpec:
     """Create an ItemSpec from field specs."""
-    return ItemSpec(key=key, adapters=[spec.adapter for spec in field_specs])
+    return ItemSpec(key=key, spec=build_spec(key, field_specs))
 
 
-def build_object_spec(
-    name: str,
-    field_specs: Sequence[FieldSpec],
-    *,
-    source_root: Sequence[str] | None = None,
-    context_section: str = "",
-    context_item_id: str = "",
-) -> ObjectSpec:
-    """Create an ObjectSpec from field specs."""
-    return ObjectSpec(
-        name=name,
-        field_specs=field_specs,
-        adapters=[spec.adapter for spec in field_specs],
-        source_root=source_root,
-        context_section=context_section,
-        context_item_id=context_item_id,
-    )
-
-
-def resume_path(*parts: str) -> Callable[[Dict[str, Any]], Any]:
-    """Create a getter for a nested resume path."""
-    def _get(resume: Dict[str, Any]) -> Any:
-        current: Any = resume
-        for key in parts:
-            if not isinstance(current, dict):
-                return None
-            current = current.get(key)
-        return current
-    return _get
-
-
-def resume_data_path(*parts: str) -> Callable[[Dict[str, Any]], Any]:
-    """Create a getter rooted at resume.data."""
-    return resume_path("data", *parts)
-
-
-_MISSING = object()
-
-
-def _resolve_payload_key(spec: FieldSpec) -> str:
-    if spec.source_key:
-        return spec.source_key
-    if hasattr(spec.adapter, "server_key"):
-        return getattr(spec.adapter, "server_key")
-    return spec.name
-
-
-def _resolve_source_value(
-    resume: Dict[str, Any],
-    spec: FieldSpec,
-    source_root: Sequence[str] | None,
-) -> Any:
-    if spec.source_getter is not None:
-        return spec.source_getter(resume)
-    if spec.source_path is not None:
-        return resume_path(*spec.source_path)(resume)
-    if source_root is None:
-        return _MISSING
-    payload_key = _resolve_payload_key(spec)
-    return resume_path(*source_root, payload_key)(resume)
+def build_spec(name: str, field_specs: Sequence[FieldSpec]) -> Spec:
+    """Create a Spec from field specs."""
+    return Spec(name=name, adapters=[spec.adapter for spec in field_specs])

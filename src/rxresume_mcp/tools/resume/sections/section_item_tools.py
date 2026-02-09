@@ -19,7 +19,7 @@ from .sections import (
     _extract_section_data,
     _require_resume_object,
 )
-from .item_spec import ItemSpec, ObjectSpec
+from .item_spec import ItemSpec, PatchTarget, Spec
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -363,10 +363,12 @@ def register_object_tools(
     *,
     tool_prefix: str,
     name: str,
-    spec: ObjectSpec,
+    spec: Spec,
+    target: PatchTarget,
     model: Type[ModelT],
     payload_type: Any,
     payload_description: str,
+    build_payload: Callable[[Dict[str, Any]], Any],
     extra_update_ops: Optional[Callable[[Dict[str, Any]], List[Dict[str, Any]]]] = None,
     reset_payload: Optional[Any] = None,
 ) -> None:
@@ -382,7 +384,7 @@ def register_object_tools(
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             resume = _require_resume_object(await client.get_resume(resume_id))
-            return spec.reshape_resume(resume)
+            return spec.reshape(build_payload(resume))
 
         return await execute_rxresume_operation(
             operation_name=f"get {name}: {resume_id}",
@@ -411,12 +413,12 @@ def register_object_tools(
             extra_ops = (
                 extra_update_ops(dict(payload_dict)) if extra_update_ops else []
             )
-            ops = spec.build_update_ops(payload_dict)
+            ops = spec.build_update_ops(payload_dict, target)
             ops.extend(extra_ops)
             validated_ops = patch_ops.validate_patch_ops(ops)
             result = await client.patch_resume(resume_id, patch_ops=validated_ops)
             resume = _require_resume_object(result)
-            return spec.reshape_resume(resume)
+            return spec.reshape(build_payload(resume))
 
         return await execute_rxresume_operation(
             operation_name=f"update {name}: {resume_id}",
