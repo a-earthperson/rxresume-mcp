@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
 
-from rxresume_mcp import patch_ops
 from rxresume_mcp.client import RxResumeClient
 
 from ..core import execute_rxresume_operation
@@ -31,7 +30,7 @@ from .sections.profile import PROFILE_SPEC
 from .sections.project import PROJECT_SPEC
 from .sections.publication import PUBLICATION_SPEC
 from .sections.reference import REFERENCE_SPEC
-from .sections.section_item_tools import coerce_object_input, extract_section_items
+from .sections.section_item_tools import extract_section_items
 from .sections.sections import _require_resume_object
 from .sections.skill import SKILL_SPEC
 from .sections.volunteer import VOLUNTEER_SPEC
@@ -273,38 +272,6 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
             ctx=ctx,
         )
 
-    @mcp.tool(name="resume.doc.update", description="Update a resume by ID")
-    async def update_resume(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        payload: Optional[Any] = Field(
-            default=None,
-            description=(
-                "Resume update payload. Fields map to root resume properties; "
-                "data replaces the resume data object."
-            ),
-        ),
-    ) -> Dict[str, Any]:
-        async def _operation(client: RxResumeClient) -> Any:
-            if payload is None:
-                raise ValueError("payload is required")
-            normalized = coerce_object_input(payload, ResumeUpdateInput, label="resume")
-            payload_dict = normalized.model_dump(exclude_none=True)
-            ops = RESUME_UPDATE_SPEC.build_update_ops(
-                payload_dict, RESUME_UPDATE_TARGET
-            )
-            validated_ops = patch_ops.validate_patch_ops(ops)
-            result = await client.patch_resume(
-                resume_id=resume_id, patch_ops=validated_ops
-            )
-            return _reshape_resume(result)
-
-        return await execute_rxresume_operation(
-            operation_name=f"resume.update: {resume_id}",
-            operation_func=_operation,
-            ctx=ctx,
-        )
-
     @mcp.tool(name="resume.doc.delete", description="Delete a resume by ID")
     async def delete_resume(
         ctx: Context,
@@ -339,9 +306,7 @@ def register_resume_export_tools(mcp: FastMCP) -> None:
             ctx=ctx,
         )
 
-    @mcp.tool(
-        name="resume.export.screenshot", description="Export resume screenshot"
-    )
+    @mcp.tool(name="resume.export.screenshot", description="Export resume screenshot")
     async def export_resume_screenshot(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),

@@ -19,8 +19,7 @@ def test_path_builders_escape_segments():
 
 def test_section_and_custom_section_paths():
     assert (
-        patch_ops.path_section_items_append("skills")
-        == "/data/sections/skills/items/-"
+        patch_ops.path_section_items_append("skills") == "/data/sections/skills/items/-"
     )
     assert (
         patch_ops.path_custom_section_item("custom-1", "item-2")

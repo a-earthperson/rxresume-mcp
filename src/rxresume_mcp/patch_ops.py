@@ -83,7 +83,9 @@ JsonPatchOp = Union[
 _patch_ops_adapter = TypeAdapter(List[JsonPatchOp])
 
 
-def validate_patch_ops(ops: Sequence[JsonPatchOp | Dict[str, Any]]) -> List[Dict[str, Any]]:
+def validate_patch_ops(
+    ops: Sequence[JsonPatchOp | Dict[str, Any]],
+) -> List[Dict[str, Any]]:
     try:
         parsed = _patch_ops_adapter.validate_python(list(ops))
     except ValidationError as exc:
@@ -172,10 +174,14 @@ def path_custom_section_items_append(custom_section_id: str) -> str:
 
 
 def path_custom_section_item(custom_section_id: str, item_id: str) -> str:
-    return _pointer("data", "customSections", "id", custom_section_id, "items", "id", item_id)
+    return _pointer(
+        "data", "customSections", "id", custom_section_id, "items", "id", item_id
+    )
 
 
-def path_custom_section_item_field(custom_section_id: str, item_id: str, field: str) -> str:
+def path_custom_section_item_field(
+    custom_section_id: str, item_id: str, field: str
+) -> str:
     return _pointer(
         "data",
         "customSections",
@@ -186,4 +192,3 @@ def path_custom_section_item_field(custom_section_id: str, item_id: str, field: 
         item_id,
         field,
     )
-

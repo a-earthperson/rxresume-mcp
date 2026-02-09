@@ -10,7 +10,6 @@ from .section_item_tools import ensure_non_empty_string, register_section_item_t
 from .field_adapters import ScalarFieldAdapter, SuppressedFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 SKILL_FIELDS = [
     FieldSpec(
         name="icon",

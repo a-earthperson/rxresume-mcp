@@ -26,6 +26,7 @@ class WebsiteFieldAdapter:
     input_key: str = "url"
     response_key: str = "url"
     server_key: str = "website"
+
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize website input and write to the server key."""
         if self.input_key in payload:
@@ -53,9 +54,7 @@ class WebsiteFieldAdapter:
         return [patch_ops.op_replace(f"{base}/url", website_payload["url"])]
 
     @staticmethod
-    def normalize_input(
-            value: Optional[WebsiteInputLike]
-    ) -> str:
+    def normalize_input(value: Optional[WebsiteInputLike]) -> str:
         """Normalize a website input for direct patch usage."""
         return normalize_website_for_patch(value)["url"]
 
@@ -70,6 +69,7 @@ class ScalarFieldAdapter:
     default: Any = None
     input_transform: Callable[[Any], Any] | None = None
     response_transform: Callable[[Any], Any] | None = None
+
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize a scalar input and write to the server key."""
         if self.input_key in payload:
@@ -137,6 +137,7 @@ class SummaryHighlightsFieldAdapter:
     response_summary_key: str = "summary"
     response_highlights_key: str = "highlights"
     server_key: str = "description"
+
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize summary/highlights input into the description field."""
         summary_present = self.summary_key in payload

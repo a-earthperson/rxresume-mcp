@@ -209,3 +209,5 @@ __marimo__/
 .cursor
 .private
 .idea
+.DS_Store
+servers.json

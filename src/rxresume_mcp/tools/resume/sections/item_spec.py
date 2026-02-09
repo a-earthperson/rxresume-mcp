@@ -163,9 +163,7 @@ def build_item_model(
         if not getattr(spec.adapter, "include_in_model", True):
             continue
         field_info = (
-            Field(default=None, alias=spec.alias)
-            if spec.alias
-            else Field(default=None)
+            Field(default=None, alias=spec.alias) if spec.alias else Field(default=None)
         )
         field_definitions[spec.name] = (Optional[spec.field_type], field_info)
     return create_model(
@@ -190,9 +188,7 @@ def build_object_model(
         if not getattr(spec.adapter, "include_in_model", True):
             continue
         field_info = (
-            Field(default=None, alias=spec.alias)
-            if spec.alias
-            else Field(default=None)
+            Field(default=None, alias=spec.alias) if spec.alias else Field(default=None)
         )
         field_definitions[spec.name] = (Optional[spec.field_type], field_info)
     return create_model(

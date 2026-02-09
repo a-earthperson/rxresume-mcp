@@ -10,12 +10,10 @@ from .section_item_tools import ensure_non_empty_string, register_section_item_t
 from .field_adapters import ScalarFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 LANGUAGE_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        alias="language",
         adapter=ScalarFieldAdapter(
             input_key="name",
             server_key="language",
@@ -27,7 +25,6 @@ LANGUAGE_FIELDS = [
     FieldSpec(
         name="proficiency",
         field_type=str,
-        alias="fluency",
         adapter=ScalarFieldAdapter(
             input_key="proficiency",
             server_key="fluency",

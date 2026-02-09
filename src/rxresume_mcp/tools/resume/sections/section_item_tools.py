@@ -184,9 +184,7 @@ def register_section_item_tools(
 ) -> None:
     """Register standard list/create/delete/update tools for a section."""
     if spec.key != section:
-        raise ValueError(
-            f"ItemSpec key must match section: {spec.key} != {section}"
-        )
+        raise ValueError(f"ItemSpec key must match section: {spec.key} != {section}")
 
     def _annotate(func: Any, arg: str, annotation: Any) -> None:
         func.__annotations__ = dict(func.__annotations__)
@@ -371,9 +369,7 @@ def register_object_tools(
                 raise ValueError(f"{name} payload is required")
             normalized = coerce_object_input(payload, model, label=name)
             payload_dict = normalized.model_dump(exclude_none=True)
-            extra_ops = (
-                extra_update_ops(dict(payload_dict)) if extra_update_ops else []
-            )
+            extra_ops = extra_update_ops(dict(payload_dict)) if extra_update_ops else []
             ops = spec.build_update_ops(payload_dict, target)
             ops.extend(extra_ops)
             validated_ops = patch_ops.validate_patch_ops(ops)
@@ -390,10 +386,7 @@ def register_object_tools(
     _annotate(_update, "payload", Optional[payload_type])
     mcp.tool(
         name=f"{tool_prefix}.update",
-        description=(
-            f"Update resume {name} fields. "
-            "All fields are optional."
-        ),
+        description=(f"Update resume {name} fields. " "All fields are optional."),
     )(_update)
 
     async def _create(
@@ -409,10 +402,7 @@ def register_object_tools(
     _annotate(_create, "payload", Optional[payload_type])
     mcp.tool(
         name=f"{tool_prefix}.create",
-        description=(
-            f"Create resume {name} fields. "
-            "All fields are optional."
-        ),
+        description=(f"Create resume {name} fields. " "All fields are optional."),
     )(_create)
 
     async def _delete(

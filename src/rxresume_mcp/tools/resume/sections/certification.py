@@ -10,12 +10,10 @@ from .section_item_tools import register_section_item_tools
 from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 CERTIFICATION_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        alias="title",
         adapter=ScalarFieldAdapter(
             input_key="name", server_key="title", response_key="name"
         ),
@@ -30,7 +28,6 @@ CERTIFICATION_FIELDS = [
     FieldSpec(
         name="period",
         field_type=str,
-        alias="date",
         adapter=ScalarFieldAdapter(
             input_key="period", server_key="date", response_key="period"
         ),
@@ -38,7 +35,6 @@ CERTIFICATION_FIELDS = [
     FieldSpec(
         name="summary",
         field_type=str,
-        alias="description",
         adapter=ScalarFieldAdapter(
             input_key="summary", server_key="description", response_key="summary"
         ),
@@ -46,7 +42,6 @@ CERTIFICATION_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

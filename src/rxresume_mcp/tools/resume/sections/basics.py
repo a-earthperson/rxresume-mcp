@@ -13,7 +13,6 @@ from .item_spec import FieldSpec, MappedPatchTarget, build_object_model, build_s
 from .sections import _extract_section_data
 from .section_item_tools import register_object_tools
 
-
 BASICS_FIELDS = [
     FieldSpec(
         name="name",
@@ -25,7 +24,6 @@ BASICS_FIELDS = [
     FieldSpec(
         name="label",
         field_type=str,
-        alias="headline",
         adapter=ScalarFieldAdapter(
             input_key="label", server_key="headline", response_key="label"
         ),
@@ -54,7 +52,6 @@ BASICS_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

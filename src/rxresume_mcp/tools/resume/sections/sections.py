@@ -40,7 +40,9 @@ def _ensure_custom_section_type(section_type: Any) -> str:
     return section_type
 
 
-def _find_custom_section(data: Dict[str, Any], custom_section_id: str) -> Dict[str, Any]:
+def _find_custom_section(
+    data: Dict[str, Any], custom_section_id: str
+) -> Dict[str, Any]:
     """Find a custom section by id or raise if missing."""
     custom_sections = data.get("customSections")
     if not isinstance(custom_sections, list):

@@ -14,14 +14,12 @@ from .field_adapters import (
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
 
 VOLUNTEER_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        alias="organization",
         adapter=ScalarFieldAdapter(
             input_key="name",
             server_key="organization",
@@ -47,7 +45,6 @@ VOLUNTEER_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

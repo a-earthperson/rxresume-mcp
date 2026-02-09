@@ -10,6 +10,5 @@ def _parse_json_pointer(path: str) -> List[str]:
     if not path.startswith("/"):
         return []
     return [
-        segment.replace("~1", "/").replace("~0", "~")
-        for segment in path[1:].split("/")
+        segment.replace("~1", "/").replace("~0", "~") for segment in path[1:].split("/")
     ]

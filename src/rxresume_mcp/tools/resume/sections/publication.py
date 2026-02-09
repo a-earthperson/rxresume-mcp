@@ -14,14 +14,12 @@ from .field_adapters import (
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
 
 PUBLICATION_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        alias="title",
         adapter=ScalarFieldAdapter(
             input_key="name", server_key="title", response_key="name"
         ),
@@ -36,7 +34,6 @@ PUBLICATION_FIELDS = [
     FieldSpec(
         name="period",
         field_type=str,
-        alias="date",
         adapter=ScalarFieldAdapter(
             input_key="period", server_key="date", response_key="period"
         ),
@@ -44,7 +41,6 @@ PUBLICATION_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

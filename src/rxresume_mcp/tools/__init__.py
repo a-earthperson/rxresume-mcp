@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import uuid as uuid
 
-from .core import AppContext, app_lifespan, execute_rxresume_operation, format_response, _encode_binary
+from .core import (
+    AppContext,
+    app_lifespan,
+    execute_rxresume_operation,
+    format_response,
+    _encode_binary,
+)
 from .resume.sections.normalize import (
     _URL_SCHEME_RE,
     _normalize_url,
@@ -13,14 +19,6 @@ from .resume.sections.normalize import (
 from .patching import _auto_id_patch_ops, _build_summary
 from .pointers import _parse_json_pointer
 from .registry import register_tools
-from .schema import (
-    _parse_schema_pointer,
-    _resolve_schema_dot_path,
-    _resolve_schema_dot_segment,
-    _resolve_schema_path,
-    _resolve_schema_ref,
-    _summarize_schema_node,
-)
 from .resume.sections.sections import (
     _custom_section_exists,
     _ensure_custom_section_type,
@@ -61,11 +59,5 @@ __all__ = [
     "_auto_id_patch_ops",
     "_build_summary",
     "_extract_section_data",
-    "_parse_schema_pointer",
-    "_resolve_schema_path",
-    "_resolve_schema_dot_path",
-    "_resolve_schema_dot_segment",
-    "_resolve_schema_ref",
-    "_summarize_schema_node",
     "uuid",
 ]

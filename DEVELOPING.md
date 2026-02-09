@@ -99,7 +99,7 @@ uv run rxresume-mcp --mcp-transport streamable-http --mcp-http-host 127.0.0.1 --
 
 ```bash
 uv run ruff check src
-uv run ruff format src
+uv run --extra dev black src tests
 ```
 
 ## Tests

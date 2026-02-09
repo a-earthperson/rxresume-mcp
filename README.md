@@ -131,5 +131,6 @@ For full development instructions, see `DEVELOPING.md`. Quick start:
 ```bash
 uv sync --extra dev
 uv run ruff check src
+uv run --extra dev black src tests
 uv run pytest
 ```

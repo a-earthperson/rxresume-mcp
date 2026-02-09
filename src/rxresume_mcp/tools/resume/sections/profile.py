@@ -7,9 +7,12 @@ from typing import List, Union
 from mcp.server.fastmcp import FastMCP
 
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
-from .field_adapters import ScalarFieldAdapter, SuppressedFieldAdapter, WebsiteFieldAdapter
+from .field_adapters import (
+    ScalarFieldAdapter,
+    SuppressedFieldAdapter,
+    WebsiteFieldAdapter,
+)
 from .item_spec import FieldSpec, build_item_model, build_item_spec
-
 
 PROFILE_FIELDS = [
     FieldSpec(
@@ -38,7 +41,6 @@ PROFILE_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

@@ -14,7 +14,6 @@ from .field_adapters import (
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
 
 EDUCATION_FIELDS = [
@@ -47,7 +46,10 @@ EDUCATION_FIELDS = [
         name="grade",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="grade", server_key="grade", response_key="grade"
+            input_key="grade",
+            server_key="grade",
+            response_key="grade",
+            default="",
         ),
     ),
     FieldSpec(
@@ -67,7 +69,6 @@ EDUCATION_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

@@ -15,12 +15,10 @@ from .field_adapters import (
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 AWARD_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        alias="title",
         adapter=ScalarFieldAdapter(
             input_key="name", server_key="title", response_key="name"
         ),
@@ -35,7 +33,6 @@ AWARD_FIELDS = [
     FieldSpec(
         name="period",
         field_type=str,
-        alias="date",
         adapter=ScalarFieldAdapter(
             input_key="period", server_key="date", response_key="period"
         ),
@@ -43,7 +40,6 @@ AWARD_FIELDS = [
     FieldSpec(
         name="summary",
         field_type=str,
-        alias="description",
         adapter=ScalarFieldAdapter(
             input_key="summary", server_key="description", response_key="summary"
         ),
@@ -51,7 +47,6 @@ AWARD_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),

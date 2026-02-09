@@ -10,7 +10,6 @@ from .section_item_tools import ensure_non_empty_string, register_section_item_t
 from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 REFERENCE_FIELDS = [
     FieldSpec(
         name="name",
@@ -33,7 +32,6 @@ REFERENCE_FIELDS = [
     FieldSpec(
         name="url",
         field_type=str,
-        alias="website",
         adapter=WebsiteFieldAdapter(
             input_key="url", server_key="website", response_key="url"
         ),
@@ -41,7 +39,6 @@ REFERENCE_FIELDS = [
     FieldSpec(
         name="contact",
         field_type=str,
-        alias="phone",
         adapter=ScalarFieldAdapter(
             input_key="contact", server_key="phone", response_key="contact"
         ),
@@ -49,7 +46,6 @@ REFERENCE_FIELDS = [
     FieldSpec(
         name="summary",
         field_type=str,
-        alias="description",
         adapter=ScalarFieldAdapter(
             input_key="summary", server_key="description", response_key="summary"
         ),

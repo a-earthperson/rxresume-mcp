@@ -10,7 +10,6 @@ from .section_item_tools import ensure_non_empty_string, register_section_item_t
 from .field_adapters import ScalarFieldAdapter, SuppressedFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
-
 INTEREST_FIELDS = [
     FieldSpec(
         name="icon",
@@ -40,7 +39,9 @@ INTEREST_FIELDS = [
     ),
 ]
 
-InterestItemInput = build_item_model("InterestItemInput", INTEREST_FIELDS, module=__name__)
+InterestItemInput = build_item_model(
+    "InterestItemInput", INTEREST_FIELDS, module=__name__
+)
 InterestItemsInput = Union[InterestItemInput, List[InterestItemInput]]
 InterestItemIdsInput = Union[str, List[str]]
 

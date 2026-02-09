@@ -14,12 +14,9 @@ from .resume.sections.education import register_education_tools
 from .resume.sections.experience import register_experience_tools
 from .resume.sections.interest import register_interest_tools
 from .resume.sections.language import register_language_tools
-from .patch_tools import register_patch_tools
 from .resume.sections.project import register_project_tools
 from .resume.sections.profile import register_profile_tools
 from .resume.sections.publication import register_publication_tools
-from .schema_tools import register_schema_tools
-from .section_tools import register_section_tools
 from .resume.sections.skill import register_skill_tools
 from .resume.sections.volunteer import register_volunteer_tools
 
@@ -41,6 +38,3 @@ def register_tools(mcp: FastMCP) -> None:
     register_interest_tools(mcp)
     register_volunteer_tools(mcp)
     register_reference_tools(mcp)
-    register_section_tools(mcp)
-    register_patch_tools(mcp)
-    register_schema_tools(mcp)
