@@ -306,9 +306,6 @@ class RxResumeClient:
         _validate_resume_id(resume_id)
         return await self._request("GET", f"/resume/{resume_id}")
 
-    async def get_resume_by_username(self, username: str, slug: str) -> Any:
-        return await self._request("GET", f"/resume/{username}/{slug}")
-
     async def create_resume(
         self,
         name: str,

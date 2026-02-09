@@ -9,7 +9,6 @@ from rxresume_mcp import patch_ops
 
 from .section_item_tools import (
     build_summary_highlights_description,
-    ensure_non_empty_string,
     split_summary_highlights_description,
 )
 from .item_spec import PatchTarget
@@ -50,8 +49,9 @@ class WebsiteFieldAdapter:
             for key, value in website_payload.items()
         ]
 
+    @staticmethod
     def normalize_input(
-        self, value: Optional[WebsiteInputLike]
+            value: Optional[WebsiteInputLike]
     ) -> Dict[str, str]:
         """Normalize a website input for direct patch usage."""
         return normalize_website_for_patch(value)

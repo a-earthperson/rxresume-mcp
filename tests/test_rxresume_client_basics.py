@@ -86,11 +86,11 @@ def _minimal_resume_data() -> dict:
 def test_validate_resume_data_allows_missing_basics_fields():
     data = _minimal_resume_data()
     data["basics"] = {}
-    rxresume_client._validate_resume_data(data)
+    client._validate_resume_data(data)
 
 
 def test_validate_resume_data_still_requires_basics_object():
     data = _minimal_resume_data()
     data.pop("basics")
     with pytest.raises(ValueError, match="basics"):
-        rxresume_client._validate_resume_data(data)
+        client._validate_resume_data(data)

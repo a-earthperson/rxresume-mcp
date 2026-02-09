@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Type, TypeVar, cast
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, cast
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -146,45 +146,6 @@ def extract_section_items(
     if not isinstance(items, list):
         raise ValueError(f"{label_value} items is not an array")
     return items
-
-
-def build_section_item_update_ops(
-    section: str,
-    item: BaseModel,
-    *,
-    nested_object_fields: Iterable[str] | None = None,
-    normalize_urls: bool = True,
-) -> List[Dict[str, Any]]:
-    """Build patch operations for a section item update."""
-    payload = item.model_dump(exclude_none=True)
-    item_id = payload.pop("id", None)
-    if not item_id or not isinstance(item_id, str):
-        raise ValueError("item.id is required for update")
-
-    ops: List[Dict[str, Any]] = []
-    nested_fields: Set[str] = set(nested_object_fields or ())
-    for field in list(payload.keys()):
-        if field not in nested_fields:
-            continue
-        nested_payload = payload.pop(field)
-        if not isinstance(nested_payload, dict):
-            raise ValueError(f"{field} must be an object")
-        if normalize_urls:
-            nested_payload = _normalize_url_fields(nested_payload)
-        base = patch_ops.path_section_item_field(section, item_id, field)
-        for key, value in nested_payload.items():
-            ops.append(patch_ops.op_replace(f"{base}/{key}", value))
-
-    for key, value in payload.items():
-        ops.append(
-            patch_ops.op_replace(
-                patch_ops.path_section_item_field(section, item_id, key), value
-            )
-        )
-
-    if not ops:
-        raise ValueError(f"No fields provided to update for item id: {item_id}")
-    return ops
 
 
 def prepare_item_with_spec(

@@ -18,12 +18,6 @@ def _normalize_path(path: str) -> str:
     return path
 
 
-def _normalize_base_url(value: str) -> str:
-    if not value:
-        return value
-    return value.rstrip("/")
-
-
 def _build_base_url(domain: str) -> str:
     domain = domain.strip().rstrip("/")
     if not domain:

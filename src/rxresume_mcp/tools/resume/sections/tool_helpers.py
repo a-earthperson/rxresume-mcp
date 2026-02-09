@@ -2,16 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union, cast
+from typing import Dict, Optional, Union, cast
 
 from pydantic import BaseModel
 
 from .normalize import _normalize_url_fields
-
-
-def has_non_empty_text(value: Any) -> bool:
-    """Return True when a string is non-empty after trimming."""
-    return isinstance(value, str) and value.strip() != ""
 
 
 class WebsiteInput(BaseModel):
