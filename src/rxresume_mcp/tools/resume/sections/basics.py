@@ -2,218 +2,123 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Optional
 
-from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
+from mcp.server.fastmcp import FastMCP
 
 from rxresume_mcp import patch_ops
-from rxresume_mcp.client import RxResumeClient
 
-from ...core import execute_rxresume_operation
-from .sections import _extract_section_data, _require_resume_object
-from .field_adapters import WebsiteFieldAdapter
+from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
+from .item_spec import (
+    FieldSpec,
+    build_object_model,
+    build_object_spec,
+    resume_data_path,
+)
+from .section_item_tools import register_object_tools
 from .tool_helpers import WebsiteInputLike
 
-WEBSITE_FIELD = WebsiteFieldAdapter()
+
+def _basics_path(_section: str, _item_id: str, field: str) -> str:
+    return patch_ops.path_basics_field(field)
 
 
-def _build_basics_patch_ops(
+def _summary_path(_section: str, _item_id: str, _field: str) -> str:
+    return patch_ops.path_summary_field("content")
+
+
+def _basics_scalar(
+    name: str,
     *,
-    name: Optional[str],
-    label: Optional[str],
-    email: Optional[str],
-    phone: Optional[str],
-    location: Optional[str],
-    website: Optional[WebsiteInputLike],
-    summary: Optional[str],
-) -> list[Dict[str, Any]]:
-    """Create patch operations for basics updates."""
-    ops: list[Dict[str, Any]] = []
-    field_values = {
-        "name": name,
-        "headline": label,
-        "email": email,
-        "phone": phone,
-        "location": location,
-    }
-    for field, value in field_values.items():
-        if value is None:
-            continue
-        ops.append(patch_ops.op_replace(patch_ops.path_basics_field(field), value))
-    if website is not None:
-        website_payload = WEBSITE_FIELD.normalize_input(website)
-        ops.append(
-            patch_ops.op_replace(
-                patch_ops.path_basics_field("website"), website_payload
-            )
-        )
-    if summary is not None:
-        ops.append(
-            patch_ops.op_replace(patch_ops.path_summary_field("content"), summary)
-        )
-    return ops
+    alias: Optional[str] = None,
+    response_key: Optional[str] = None,
+) -> FieldSpec:
+    return FieldSpec(
+        name=name,
+        field_type=str,
+        alias=alias,
+        adapter=ScalarFieldAdapter(
+            input_key=name,
+            server_key=alias or name,
+            response_key=response_key or name,
+            path_builder=_basics_path,
+        ),
+    )
 
 
-_BASICS_RESPONSE_MISSING = object()
+def _summary_scalar() -> FieldSpec:
+    return FieldSpec(
+        name="summary",
+        field_type=str,
+        source_getter=resume_data_path("summary", "content"),
+        adapter=ScalarFieldAdapter(
+            input_key="summary",
+            server_key="summary",
+            response_key="summary",
+            path_builder=_summary_path,
+        ),
+    )
 
 
-def _build_basics_response(
-    payload: Any, *, summary_content: Any = _BASICS_RESPONSE_MISSING
-) -> Any:
-    """Normalize basics response payload for MCP clients."""
-    if isinstance(payload, dict):
-        normalized = dict(payload)
-        normalized.pop("customFields", None)
-        if "headline" in normalized:
-            normalized["label"] = normalized.pop("headline")
-        if summary_content is not _BASICS_RESPONSE_MISSING:
-            normalized["summary"] = summary_content
-        return normalized
-    return payload
+def _basics_website() -> FieldSpec:
+    return FieldSpec(
+        name="url",
+        field_type=WebsiteInputLike,
+        alias="website",
+        adapter=WebsiteFieldAdapter(
+            input_key="url",
+            server_key="website",
+            response_key="url",
+            path_builder=_basics_path,
+        ),
+    )
+
+
+BASICS_FIELDS = [
+    _basics_scalar("name"),
+    _basics_scalar("label", alias="headline"),
+    _basics_scalar("email"),
+    _basics_scalar("phone"),
+    _basics_scalar("location"),
+    _basics_website(),
+    _summary_scalar(),
+]
+
+BasicsInput = build_object_model(
+    "BasicsInput", BASICS_FIELDS, populate_by_name=True, module=__name__
+)
+BASICS_SPEC = build_object_spec(
+    "basics",
+    BASICS_FIELDS,
+    source_root=("data", "basics"),
+)
+
+BASICS_RESET = BasicsInput(
+    name="",
+    label="",
+    email="",
+    phone="",
+    location="",
+    url={"url": "", "label": ""},
+    summary="",
+)
 
 
 def register_basics_tools(mcp: FastMCP) -> None:
     """Register tools that edit basics fields."""
-
-    @mcp.tool(
-        name="resume.basics.get",
-        description="Get resume basics fields.",
+    register_object_tools(
+        mcp,
+        tool_prefix="resume.basics",
+        name="basics",
+        spec=BASICS_SPEC,
+        model=BasicsInput,
+        payload_type=BasicsInput,
+        payload_description=(
+            "Basics object with any subset of fields to update. "
+            "url accepts a string or {url,label} (alias: website)."
+        ),
+        extra_update_ops=lambda _payload: [
+            patch_ops.op_replace(patch_ops.path_basics_field("customFields"), [])
+        ],
+        reset_payload=BASICS_RESET,
     )
-    async def get_basics(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-    ) -> Dict[str, Any]:
-        async def _operation(client: RxResumeClient) -> Any:
-            resume = _require_resume_object(await client.get_resume(resume_id))
-            basics = _extract_section_data(resume, "basics")["data"]
-            summary_data = _extract_section_data(resume, "summary")["data"]
-            summary_content = (
-                summary_data.get("content")
-                if isinstance(summary_data, dict)
-                else None
-            )
-            return _build_basics_response(basics, summary_content=summary_content)
-
-        return await execute_rxresume_operation(
-            operation_name=f"get basics: {resume_id}",
-            operation_func=_operation,
-            ctx=ctx,
-        )
-
-    @mcp.tool(
-        name="resume.basics.update",
-        description=(
-            "Update resume basics fields. "
-            "All fields are optional; website accepts a string or {url,label}."
-        ),
-    )
-    async def update_basics(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        name: Optional[str] = Field(default=None, description="Person name"),
-        label: Optional[str] = Field(default=None, description="Headline/title"),
-        email: Optional[str] = Field(default=None, description="Email address"),
-        phone: Optional[str] = Field(default=None, description="Phone number"),
-        location: Optional[str] = Field(default=None, description="Location string"),
-        website: Optional[WebsiteInputLike] = Field(
-            default=None,
-            description="Website URL string or object with url and optional label.",
-        ),
-        summary: Optional[str] = Field(
-            default=None,
-            description="HTML-formatted summary content",
-        ),
-    ) -> Dict[str, Any]:
-        async def _operation(client: RxResumeClient) -> Any:
-            ops = _build_basics_patch_ops(
-                name=name,
-                label=label,
-                email=email,
-                phone=phone,
-                location=location,
-                website=website,
-                summary=summary,
-            )
-            if not ops:
-                raise ValueError(
-                    "No basics fields provided to update."
-                )
-            ops.append(
-                patch_ops.op_replace(
-                    patch_ops.path_basics_field("customFields"), []
-                )
-            )
-            validated_ops = patch_ops.validate_patch_ops(ops)
-            result = await client.patch_resume(resume_id, patch_ops=validated_ops)
-            resume = _require_resume_object(result)
-            basics = _extract_section_data(resume, "basics")["data"]
-            summary_data = _extract_section_data(resume, "summary")["data"]
-            summary_content = (
-                summary_data.get("content")
-                if isinstance(summary_data, dict)
-                else None
-            )
-            return _build_basics_response(basics, summary_content=summary_content)
-
-        return await execute_rxresume_operation(
-            operation_name=f"update basics: {resume_id}",
-            operation_func=_operation,
-            ctx=ctx,
-        )
-
-    @mcp.tool(
-        name="resume.basics.create",
-        description=(
-            "Create resume basics fields. "
-            "All fields are optional; website accepts a string or {url,label}."
-        ),
-    )
-    async def create_basics(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        name: Optional[str] = Field(default=None, description="Person name"),
-        label: Optional[str] = Field(default=None, description="Headline/title"),
-        email: Optional[str] = Field(default=None, description="Email address"),
-        phone: Optional[str] = Field(default=None, description="Phone number"),
-        location: Optional[str] = Field(default=None, description="Location string"),
-        website: Optional[WebsiteInputLike] = Field(
-            default=None,
-            description="Website URL string or object with url and optional label.",
-        ),
-        summary: Optional[str] = Field(
-            default=None,
-            description="HTML-formatted summary content",
-        ),
-    ) -> Dict[str, Any]:
-        return await update_basics(
-            ctx=ctx,
-            resume_id=resume_id,
-            name=name,
-            label=label,
-            email=email,
-            phone=phone,
-            location=location,
-            website=website,
-            summary=summary,
-        )
-
-    @mcp.tool(
-        name="resume.basics.delete",
-        description="Reset resume basics fields to empty values.",
-    )
-    async def delete_basics(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-    ) -> Dict[str, Any]:
-        return await update_basics(
-            ctx=ctx,
-            resume_id=resume_id,
-            name="",
-            label="",
-            email="",
-            phone="",
-            location="",
-            website={"url": "", "label": ""},
-            summary="",
-        )

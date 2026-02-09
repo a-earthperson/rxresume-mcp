@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, cast
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Type, TypeVar, cast
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -19,7 +19,7 @@ from .sections import (
     _extract_section_data,
     _require_resume_object,
 )
-from .item_spec import ItemSpec
+from .item_spec import ItemSpec, ObjectSpec
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -121,6 +121,17 @@ def coerce_model_items(
     if isinstance(items, dict):
         return [model_cls.model_validate(items)]
     raise ValueError(f"{label} must be an object or a list of objects")
+
+
+def coerce_object_input(
+    value: Any, model_cls: Type[ModelT], label: str = "payload"
+) -> ModelT:
+    """Normalize an object input into a model instance."""
+    if isinstance(value, model_cls):
+        return value
+    if isinstance(value, dict):
+        return model_cls.model_validate(value)
+    raise ValueError(f"{label} must be an object")
 
 
 def extract_section_items(
@@ -345,6 +356,114 @@ def register_section_item_tools(
             "item.id is required; other fields are optional."
         ),
     )(_update)
+
+
+def register_object_tools(
+    mcp: FastMCP,
+    *,
+    tool_prefix: str,
+    name: str,
+    spec: ObjectSpec,
+    model: Type[ModelT],
+    payload_type: Any,
+    payload_description: str,
+    extra_update_ops: Optional[Callable[[Dict[str, Any]], List[Dict[str, Any]]]] = None,
+    reset_payload: Optional[Any] = None,
+) -> None:
+    """Register standard get/update/create/delete tools for an object."""
+
+    def _annotate(func: Any, arg: str, annotation: Any) -> None:
+        func.__annotations__ = dict(func.__annotations__)
+        func.__annotations__[arg] = annotation
+
+    async def _get(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            resume = _require_resume_object(await client.get_resume(resume_id))
+            return spec.reshape_resume(resume)
+
+        return await execute_rxresume_operation(
+            operation_name=f"get {name}: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+        )
+
+    mcp.tool(
+        name=f"{tool_prefix}.get",
+        description=f"Get resume {name} fields.",
+    )(_get)
+
+    async def _update(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+        payload: Optional[Any] = Field(
+            default=None,
+            description=payload_description,
+        ),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            if payload is None:
+                raise ValueError(f"{name} payload is required")
+            normalized = coerce_object_input(payload, model, label=name)
+            payload_dict = normalized.model_dump(exclude_none=True)
+            extra_ops = (
+                extra_update_ops(dict(payload_dict)) if extra_update_ops else []
+            )
+            ops = spec.build_update_ops(payload_dict)
+            ops.extend(extra_ops)
+            validated_ops = patch_ops.validate_patch_ops(ops)
+            result = await client.patch_resume(resume_id, patch_ops=validated_ops)
+            resume = _require_resume_object(result)
+            return spec.reshape_resume(resume)
+
+        return await execute_rxresume_operation(
+            operation_name=f"update {name}: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+        )
+
+    _annotate(_update, "payload", Optional[payload_type])
+    mcp.tool(
+        name=f"{tool_prefix}.update",
+        description=(
+            f"Update resume {name} fields. "
+            "All fields are optional."
+        ),
+    )(_update)
+
+    async def _create(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+        payload: Optional[Any] = Field(
+            default=None,
+            description=payload_description,
+        ),
+    ) -> Dict[str, Any]:
+        return await _update(ctx=ctx, resume_id=resume_id, payload=payload)
+
+    _annotate(_create, "payload", Optional[payload_type])
+    mcp.tool(
+        name=f"{tool_prefix}.create",
+        description=(
+            f"Create resume {name} fields. "
+            "All fields are optional."
+        ),
+    )(_create)
+
+    async def _delete(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+    ) -> Dict[str, Any]:
+        if reset_payload is None:
+            raise ValueError(f"No reset payload configured for {name}.")
+        return await _update(ctx=ctx, resume_id=resume_id, payload=reset_payload)
+
+    mcp.tool(
+        name=f"{tool_prefix}.delete",
+        description=f"Reset resume {name} fields to empty values.",
+    )(_delete)
 
 
 async def apply_section_item_patch(
