@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, cast
 
 from pydantic import BaseModel
+
+from .normalize import _normalize_url_fields
 
 
 def has_non_empty_text(value: Any) -> bool:
@@ -62,3 +64,9 @@ def normalize_website_payload(
         return normalized
     normalized.update(coerce_website_input(value, require_url=False))
     return normalized
+
+
+def normalize_website_for_patch(value: Optional[WebsiteInputLike]) -> Dict[str, str]:
+    """Normalize website input and ensure URL schemes are present."""
+    payload = normalize_website_payload(value)
+    return cast(Dict[str, str], _normalize_url_fields(payload))

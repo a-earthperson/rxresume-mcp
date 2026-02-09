@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar
+from typing import Any, Dict, Iterable, List, Optional, Set, Type, TypeVar, cast
 
-from pydantic import BaseModel
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, Field
 
 from rxresume_mcp import patch_ops
 from rxresume_mcp.client import RxResumeClient
 
+from ...core import execute_rxresume_operation
 from .normalize import _normalize_url_fields
-from .sections import _extract_section_data, _require_resume_object
+from .sections import (
+    _ensure_item_id,
+    _ensure_object_payload,
+    _extract_section_data,
+    _require_resume_object,
+)
+from .item_spec import ItemSpec
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
@@ -166,6 +174,177 @@ def build_section_item_update_ops(
     if not ops:
         raise ValueError(f"No fields provided to update for item id: {item_id}")
     return ops
+
+
+def prepare_item_with_spec(
+    item: BaseModel, created_ids: List[str], spec: ItemSpec
+) -> Dict[str, Any]:
+    """Prepare an item payload using an ItemSpec."""
+    payload = item.model_dump(exclude_none=True)
+    payload = _ensure_object_payload(payload, "item")
+    payload["hidden"] = False
+    payload = _ensure_item_id(payload, created_ids)
+    payload = spec.apply_defaults(payload)
+    payload = cast(Dict[str, Any], _normalize_url_fields(payload))
+    return payload
+
+
+def build_update_ops_with_spec(item: BaseModel, spec: ItemSpec) -> List[Dict[str, Any]]:
+    """Build update ops using an ItemSpec."""
+    payload = item.model_dump(exclude_none=True)
+    item_id = payload.pop("id", None)
+    if not item_id or not isinstance(item_id, str):
+        raise ValueError("item.id is required for update")
+    return spec.build_update_ops(item_id, payload)
+
+
+def register_section_item_tools(
+    mcp: FastMCP,
+    *,
+    tool_prefix: str,
+    section: str,
+    label: str,
+    noun: str,
+    spec: ItemSpec,
+    item_model: Type[ModelT],
+    items_type: Any,
+    item_ids_type: Any,
+) -> None:
+    """Register standard list/create/delete/update tools for a section."""
+    if spec.key != section:
+        raise ValueError(
+            f"ItemSpec key must match section: {spec.key} != {section}"
+        )
+
+    def _annotate(func: Any, arg: str, annotation: Any) -> None:
+        func.__annotations__ = dict(func.__annotations__)
+        func.__annotations__[arg] = annotation
+
+    async def _list(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            resume = _require_resume_object(await client.get_resume(resume_id))
+            items = extract_section_items(resume, section, label=label)
+            return spec.reshape_items(items)
+
+        return await execute_rxresume_operation(
+            operation_name=f"list {noun}: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+        )
+
+    mcp.tool(
+        name=f"{tool_prefix}.list",
+        description=f"List {noun} items for a resume.",
+    )(_list)
+
+    async def _create(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+        items: Optional[Any] = Field(
+            default=None,
+            description=f"{noun.title()} item or list of items to add.",
+        ),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            if items is None:
+                raise ValueError("items is required")
+            created_ids: List[str] = []
+            ops: List[Dict[str, Any]] = []
+            for item in coerce_model_items(items, item_model):
+                payload = prepare_item_with_spec(item, created_ids, spec)
+                ops.append(
+                    patch_ops.op_add(
+                        patch_ops.path_section_items_append(section), payload
+                    )
+                )
+            result = await apply_section_item_patch(
+                client, resume_id, section, ops, label=label
+            )
+            return spec.reshape_items(result)
+
+        return await execute_rxresume_operation(
+            operation_name=f"add {noun}: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+        )
+
+    _annotate(_create, "items", Optional[items_type])
+    mcp.tool(
+        name=f"{tool_prefix}.item.create",
+        description=(
+            f"Add one or more {noun} items. "
+            "All fields are optional; hidden is forced to false."
+        ),
+    )(_create)
+
+    async def _delete(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+        item_ids: Optional[Any] = Field(
+            default=None, description="Item id or list of item ids to remove."
+        ),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            if item_ids is None:
+                raise ValueError("item_ids is required")
+            ops: List[Dict[str, Any]] = []
+            for item_id in coerce_item_ids(item_ids):
+                ops.append(
+                    patch_ops.op_remove(patch_ops.path_section_item(section, item_id))
+                )
+            result = await apply_section_item_patch(
+                client, resume_id, section, ops, label=label
+            )
+            return spec.reshape_items(result)
+
+        return await execute_rxresume_operation(
+            operation_name=f"remove {noun}: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+        )
+
+    _annotate(_delete, "item_ids", Optional[item_ids_type])
+    mcp.tool(
+        name=f"{tool_prefix}.item.delete",
+        description=f"Remove one or more {noun} items by id.",
+    )(_delete)
+
+    async def _update(
+        ctx: Context,
+        resume_id: str = Field(description="Resume ID"),
+        items: Optional[Any] = Field(
+            default=None,
+            description=f"{noun.title()} item or list of items to update.",
+        ),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            if items is None:
+                raise ValueError("items is required")
+            ops: List[Dict[str, Any]] = []
+            for item in coerce_model_items(items, item_model):
+                ops.extend(build_update_ops_with_spec(item, spec))
+            result = await apply_section_item_patch(
+                client, resume_id, section, ops, label=label
+            )
+            return spec.reshape_items(result)
+
+        return await execute_rxresume_operation(
+            operation_name=f"update {noun}: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+        )
+
+    _annotate(_update, "items", Optional[items_type])
+    mcp.tool(
+        name=f"{tool_prefix}.item.update",
+        description=(
+            f"Update one or more {noun} items by id. "
+            "item.id is required; other fields are optional."
+        ),
+    )(_update)
 
 
 async def apply_section_item_patch(

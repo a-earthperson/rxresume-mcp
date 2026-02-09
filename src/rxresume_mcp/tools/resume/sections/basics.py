@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Optional
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -11,9 +11,11 @@ from rxresume_mcp import patch_ops
 from rxresume_mcp.client import RxResumeClient
 
 from ...core import execute_rxresume_operation
-from .normalize import _normalize_url_fields
 from .sections import _extract_section_data, _require_resume_object
-from .tool_helpers import WebsiteInputLike, coerce_website_input
+from .field_adapters import WebsiteFieldAdapter
+from .tool_helpers import WebsiteInputLike
+
+WEBSITE_FIELD = WebsiteFieldAdapter()
 
 
 def _build_basics_patch_ops(
@@ -40,10 +42,7 @@ def _build_basics_patch_ops(
             continue
         ops.append(patch_ops.op_replace(patch_ops.path_basics_field(field), value))
     if website is not None:
-        website_payload = coerce_website_input(website, require_url=False)
-        website_payload = cast(
-            Dict[str, str], _normalize_url_fields(website_payload)
-        )
+        website_payload = WEBSITE_FIELD.normalize_input(website)
         ops.append(
             patch_ops.op_replace(
                 patch_ops.path_basics_field("website"), website_payload
