@@ -154,6 +154,13 @@ def prepare_item_with_spec(
     """Prepare an item payload using an ItemSpec."""
     payload = item.model_dump(exclude_unset=True)
     payload = _ensure_object_payload(payload, "item")
+    # Proposal C: client-supplied ids are not allowed on create. We still tolerate
+    # `id=None` (common in callers) but we never persist/forward it.
+    if "id" in payload:
+        provided = payload.get("id")
+        if provided not in (None, ""):
+            raise ValueError("item.id must not be provided when creating items")
+        payload.pop("id", None)
     payload["hidden"] = False
     payload = _ensure_item_id(payload, created_ids)
     payload = spec.apply_defaults(payload)

@@ -1,5 +1,5 @@
 ## Executive Summary
-`resume_tool` is functionally broad (resume CRUD, section CRUD across 12 section types, and PDF/screenshot export) and generally responds quickly with predictable “success/error” envelopes. However, agent usability—especially for small/self-hosted models—is significantly impacted by (1) an extremely large tool surface (≈58 endpoints with repeated patterns), (2) inconsistent update semantics that can silently **delete data** (most notably `summary` vs `highlights` fields), (3) schema/documentation mismatches (e.g., “website” alias) that trigger **client-side validation failures**, and (4) inconsistent response conventions (HTML vs plain text, “None” string, delete returning “remaining items”).
+`resume_tool` is functionally broad (resume CRUD, section CRUD across 12 section types, and PDF/screenshot export) and generally responds quickly with predictable “success/error” envelopes. However, agent usability—especially for small/self-hosted models—is significantly impacted by (1) an extremely large tool surface (≈58 endpoints with repeated patterns), (2) inconsistent update semantics that can silently **delete data** (most notably `summary` vs `highlights` fields), (3) schema/documentation mismatches that trigger **client-side validation failures**, and (4) inconsistent response conventions (HTML vs plain text, “None” string, delete returning “remaining items”).
 
 High-level recommendations:
 - Collapse the section APIs into a **generic** section endpoint, add **response shaping** (minimal vs full, field selection), and add **pagination**.
@@ -23,7 +23,7 @@ Black-box testing was performed exclusively through the documented MCP tool func
    - `resume.export.pdf`, `resume.export.screenshot` (valid + invalid resume_id)
 3. **Basics CRUD**
    - `resume.basics.get`, `.create`, `.update`, `.delete`
-   - Schema mismatch test: `payload.website` alias claim
+   - Schema mismatch tests for documented-but-unsupported inputs
 4. **All section CRUDs (12 section types)**
    - For each section: `list`, `item.create`, `item.update`, `item.delete`
    - Both **single-item** and **batch** create/update forms
@@ -78,7 +78,7 @@ Some failures happen *before the tool call* due to strict schema validation (“
 | Issue ID | Reasoning/Analysis (Step-by-Step) | Description | Impact (esp. Small/Self-Hosted Models) | Recommended Change |
 |---:|---|---|---|---|
 | 1 | 1) Tried `resume.doc.list` with `tags=null` expecting optional tags. 2) Tool call failed client-side with Pydantic validation error requiring a list. 3) This contradicts the parameter description (“Optional list of tags”). | **`resume.doc.list.tags` is required** by schema even though docs imply optional. Must pass `[]`. | **High**: small models often omit “optional” args; client-side hard failure prevents graceful recovery. | Make `tags` truly optional (nullable/omittable) in schema; default to `[]` server-side. Ensure validation errors return the same envelope as runtime errors. |
-| 2 | 1) `resume.basics.update` docs claim `url` accepts alias `website`. 2) Called with `payload.website`. 3) Tool rejected with “extra inputs are not permitted”. | **Docs claim `website` alias, but schema forbids it.** | **High**: many resume schemas use `website`; small models will guess it and repeatedly fail. | Add `website` alias at schema layer (or remove claim). Ideally accept both `url` and `website` and normalize. |
+| 2 | 1) Docs claim the basics URL field accepts an alternate key. 2) Called with that alternate key. 3) Tool rejected with “extra inputs are not permitted”. | **Docs claim an alternate input key, but schema forbids it.** | **High**: models will guess the alternate key and repeatedly fail client-side validation. | Remove the alternate-key claim from docs (or implement support), and ensure docs match the tool schema exactly. |
 | 3 | 1) Created experience/education/project/publication/volunteer items with both `summary` and `highlights`. 2) Updated only `highlights`. 3) Observed `summary` became `null`. 4) Updated only `summary`. 5) Observed `highlights` became `null`. | **Destructive partial updates for (`summary`, `highlights`) pairs** in multiple sections. Updating one field clears the other. | **Very High**: silent data loss; small models won’t reliably fetch+replay full objects, and will corrupt resumes. | Implement consistent PATCH semantics: omitted fields unchanged; explicit `null` clears. Add regression tests for “update highlights preserves summary” and vice versa. |
 | 4 | 1) Observed `resume.basics.update` behaves like patch (omitted fields preserved). 2) Observed section item updates vary: some patch-like, some destructive for specific fields. | **Update semantics inconsistent across endpoints and fields.** | **High**: models learn wrong rule from one endpoint and apply to others, causing accidental data loss. | Define and document one update contract for all endpoints (e.g., JSON Merge Patch). Enforce uniformly. |
 | 5 | 1) Created experience/project/etc with plain-text `summary`. 2) Responses often returned HTML wrapped in `<p>…</p>`. 3) In awards/certs/references, summary remained plain. 4) Sample data sometimes contained HTML already. | **Inconsistent rich-text behavior** (some summaries HTML-wrapped, others plain). | **Medium–High**: small models may double-wrap HTML, strip tags incorrectly, or fail downstream rendering. | Standardize: either (a) always store/return plain text + separate `summary_html`, or (b) always accept/return HTML with clear contract and sanitization rules. |
@@ -88,7 +88,7 @@ Some failures happen *before the tool call* due to strict schema validation (“
 | 9 | 1) Invalid UUID format returns friendly error. 2) Non-existent UUID on `get` returns stringified HTTP dict. 3) Schema validation errors bypass tool envelope entirely (“Failed to call MCP tool…”). | **Error handling not uniform** across validation vs runtime vs HTTP errors. | **High**: small models fail to implement robust retries/repairs without consistent machine-readable error codes. | Standardize all errors to a single envelope: `{ok:false, code, message, details, hint}`. Wrap schema validation errors similarly. |
 | 10 | 1) `doc.create(with_sample_data=true)` returned a huge nested resume. 2) For small models, this consumes context and makes follow-up operations unreliable. | **Oversized default responses** (no “minimal” response mode). | **High** for small models: context overflow → ID loss → wrong updates. | Add response shaping: `return="id_only"|"metadata"|"full"`, plus section include/exclude filters. Make “minimal” default for tool use. |
 | 11 | 1) `resume.doc.list` returns all matches with no paging parameters. 2) In environments with many resumes, response becomes huge. | **No pagination/limits on list endpoints.** | **High**: overwhelms small models; also wastes tokens/time. | Add `limit`, `offset/cursor`, and `total` fields. Provide `next_cursor`. |
-| 12 | 1) Observed mixed naming conventions: requests use `with_sample_data`, `resume_id`; responses include `createdAt`, `updatedAt`, `isPublic`. | **Inconsistent naming conventions** across request/response payloads. | **Medium**: increases mapping errors, especially for small models. | Adopt one convention end-to-end (prefer snake_case for MCP tools) or provide consistent aliases in both directions. |
+| 12 | 1) Observed mixed naming conventions: requests use `with_sample_data`, `resume_id`; responses include mixed casing for timestamp/flags. | **Inconsistent naming conventions** across request/response payloads. | **Medium**: increases mapping errors, especially for small models. | Adopt one convention end-to-end (prefer snake_case for MCP tools) or provide consistent naming translation in both directions. |
 | 13 | 1) Inspected uploaded MCP config file. 2) File contains a bearer token in plaintext. | **Operational security risk**: long-lived token in config file. | **Context-dependent but potentially High** if shared or checked into repos. | Use env vars / secret managers; prefer short-lived tokens. Provide guidance and “redaction safe” examples. |
 
 ---
@@ -223,15 +223,8 @@ Some failures happen *before the tool call* due to strict schema validation (“
 Input should be a valid list
 ```
 
-### A3) Docs mismatch: `payload.website` rejected (despite alias claim)
-**Input**
-```json
-{"resume_id":"...","payload":{"website":"https://example.com"}}
-```
-**Output**
-```text
-payload.website Extra inputs are not permitted
-```
+### A3) Docs mismatch: documented-but-unsupported input rejected
+The tool schema rejects undocumented or unsupported input keys with a strict validation error before the tool call is dispatched.
 
 ### A4) Data loss: updating `highlights` clears `summary` (experience example)
 **Create**

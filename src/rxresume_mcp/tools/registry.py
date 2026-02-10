@@ -6,6 +6,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .resume import register_resume_tools
 
+from .resume.sections.generic_section_tools import register_generic_section_tools
+
 from .resume.sections.award import register_award_tools
 from .resume.sections.basics import register_basics_tools
 from .resume.sections.reference import register_reference_tools
@@ -25,16 +27,19 @@ def register_tools(mcp: FastMCP) -> None:
     """Register RxResume MCP tool endpoints."""
     register_resume_tools(mcp)
 
+    # Additive generic section CRUD (does not replace per-section tools).
+    register_generic_section_tools(mcp)
     register_basics_tools(mcp)
-    register_award_tools(mcp)
-    register_certification_tools(mcp)
-    register_experience_tools(mcp)
-    register_education_tools(mcp)
-    register_project_tools(mcp)
-    register_profile_tools(mcp)
-    register_publication_tools(mcp)
-    register_skill_tools(mcp)
-    register_language_tools(mcp)
-    register_interest_tools(mcp)
-    register_volunteer_tools(mcp)
-    register_reference_tools(mcp)
+    
+    # register_award_tools(mcp)
+    # register_certification_tools(mcp)
+    # register_experience_tools(mcp)
+    # register_education_tools(mcp)
+    # register_project_tools(mcp)
+    # register_profile_tools(mcp)
+    # register_publication_tools(mcp)
+    # register_skill_tools(mcp)
+    # register_language_tools(mcp)
+    # register_interest_tools(mcp)
+    # register_volunteer_tools(mcp)
+    # register_reference_tools(mcp)

@@ -17,13 +17,13 @@ from .tool_helpers import (
 
 @dataclass(frozen=True)
 class WebsiteFieldAdapter:
-    """Adapter for website/url fields across inputs, storage, and responses."""
+    """Adapter for url fields across inputs, storage, and responses."""
 
     response_key: str = "url"
     server_key: str | None = None
 
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
-        """Normalize website input and write to the server key."""
+        """Normalize url input and write to the server key."""
         server_key = self.server_key or self.response_key
         if self.response_key in payload:
             value = payload.pop(self.response_key)
@@ -32,7 +32,7 @@ class WebsiteFieldAdapter:
         payload.setdefault(server_key, normalize_website_payload(None))
 
     def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Return a response-ready website payload."""
+        """Return a response-ready url payload."""
         server_key = self.server_key or self.response_key
         value = payload.get(server_key)
         normalized = normalize_website_payload(value)
@@ -43,7 +43,7 @@ class WebsiteFieldAdapter:
     def build_update_ops(
         self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
-        """Build patch ops for website updates."""
+        """Build patch ops for url updates."""
         server_key = self.server_key or self.response_key
         if self.response_key not in payload:
             return []
@@ -53,7 +53,7 @@ class WebsiteFieldAdapter:
 
     @staticmethod
     def normalize_input(value: Optional[WebsiteInputLike]) -> str:
-        """Normalize a website input for direct patch usage."""
+        """Normalize a url input for direct patch usage."""
         return normalize_website_for_patch(value)["url"]
 
 

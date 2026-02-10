@@ -22,7 +22,7 @@ WebsiteInputLike = Union[str, Dict[str, str], WebsiteInput]
 def coerce_website_input(
     value: WebsiteInputLike, *, require_url: bool = False
 ) -> Dict[str, str]:
-    """Normalize website input into the schema-required shape."""
+    """Normalize url input into the schema-required shape."""
     if isinstance(value, WebsiteInput):
         payload = value.model_dump(exclude_none=True)
     elif isinstance(value, str):
@@ -30,20 +30,20 @@ def coerce_website_input(
     elif isinstance(value, dict):
         payload = WebsiteInput.model_validate(value).model_dump(exclude_none=True)
     else:
-        raise ValueError("website must be a string or an object with url/label")
+        raise ValueError("url must be a string or an object with url/label")
 
     url = payload.get("url")
     label = payload.get("label", "")
     if label is None:
         label = ""
     if not isinstance(label, str):
-        raise ValueError("website.label must be a string")
+        raise ValueError("url.label must be a string")
     if url is None:
         url = ""
     if not isinstance(url, str):
-        raise ValueError("website.url must be a string")
+        raise ValueError("url.url must be a string")
     if require_url and not url:
-        raise ValueError("website.url must be a non-empty string")
+        raise ValueError("url.url must be a non-empty string")
     return {"url": url, "label": label}
 
 
@@ -53,7 +53,7 @@ def normalize_website_payload(
     default_url: str = "",
     default_label: str = "",
 ) -> Dict[str, str]:
-    """Merge website input with defaults and return a normalized dict."""
+    """Merge url input with defaults and return a normalized dict."""
     normalized = {"url": default_url, "label": default_label}
     if value is None:
         return normalized
@@ -62,6 +62,6 @@ def normalize_website_payload(
 
 
 def normalize_website_for_patch(value: Optional[WebsiteInputLike]) -> Dict[str, str]:
-    """Normalize website input and ensure URL schemes are present."""
+    """Normalize url input and ensure URL schemes are present."""
     payload = normalize_website_payload(value)
     return cast(Dict[str, str], _normalize_url_fields(payload))

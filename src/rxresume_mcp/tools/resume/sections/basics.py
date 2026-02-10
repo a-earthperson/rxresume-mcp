@@ -94,8 +94,7 @@ def register_basics_tools(mcp: FastMCP) -> None:
         model=BasicsInput,
         payload_type=BasicsInput,
         payload_description=(
-            "Basics object with any subset of fields to update. "
-            "url accepts a string (alias: website)."
+            "Basics object with any subset of fields to update."
         ),
         build_payload=_build_basics_payload,
         extra_update_ops=lambda _payload: [
