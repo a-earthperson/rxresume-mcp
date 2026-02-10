@@ -100,6 +100,56 @@ def coerce_item_ids(item_ids: Any, label: str = "item_ids") -> List[str]:
     raise ValueError(f"{label} must be a string or a list of strings")
 
 
+def coerce_clear_fields(value: Any, *, label: str = "clear_fields") -> List[str]:
+    """Normalize clear field names into a list of non-empty strings."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        if not value:
+            raise ValueError(f"{label} must not be empty")
+        return [value]
+    if isinstance(value, list):
+        fields: List[str] = []
+        for item in value:
+            if not isinstance(item, str) or not item:
+                raise ValueError(f"{label} must contain non-empty strings only")
+            fields.append(item)
+        return fields
+    raise ValueError(f"{label} must be a string or a list of strings")
+
+
+def coerce_clear_instructions(value: Any) -> List[Dict[str, Any]]:
+    """
+    Normalize clear instructions into:
+      [{"id": "<item_id>", "fields": ["field1", ...]}, ...]
+    Accepts:
+      - None
+      - {"<id>": ["field", ...], ...}
+      - [{"id": "...", "fields": [...]}, ...]
+    """
+    if value is None:
+        return []
+    if isinstance(value, dict):
+        instructions: List[Dict[str, Any]] = []
+        for item_id, fields in value.items():
+            if not isinstance(item_id, str) or not item_id:
+                raise ValueError("clear keys must be non-empty strings (item ids)")
+            instructions.append({"id": item_id, "fields": coerce_clear_fields(fields, label="clear.fields")})
+        return instructions
+    if isinstance(value, list):
+        instructions = []
+        for entry in value:
+            if not isinstance(entry, dict):
+                raise ValueError("clear entries must be objects like {id, fields}")
+            item_id = entry.get("id")
+            fields = entry.get("fields")
+            if not isinstance(item_id, str) or not item_id:
+                raise ValueError("clear.id must be a non-empty string")
+            instructions.append({"id": item_id, "fields": coerce_clear_fields(fields, label="clear.fields")})
+        return instructions
+    raise ValueError("clear must be an object mapping id->fields or a list of {id, fields}")
+
+
 def coerce_model_items(
     items: Any, model_cls: Type[ModelT], label: str = "items"
 ) -> List[ModelT]:
@@ -193,15 +243,13 @@ def register_section_item_tools(
     if spec.key != section:
         raise ValueError(f"ItemSpec key must match section: {spec.key} != {section}")
 
-    def _annotate(func: Any, arg: str, annotation: Any) -> None:
-        func.__annotations__ = dict(func.__annotations__)
-        func.__annotations__[arg] = annotation
-
     async def _list(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             resume = _require_resume_object(await client.get_resume(resume_id))
             items = extract_section_items(resume, section, label=label)
             return spec.reshape_items(items)
@@ -210,6 +258,7 @@ def register_section_item_tools(
             operation_name=f"list {noun}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     mcp.tool(
@@ -219,13 +268,14 @@ def register_section_item_tools(
 
     async def _create(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        items: Optional[Any] = Field(
-            default=None,
-            description=f"{noun.title()} item or list of items to add.",
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        items: Any = Field(
+            default=None, description=f"{noun.title()} item or list of items to add."
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             if items is None:
                 raise ValueError("items is required")
             created_ids: List[str] = []
@@ -246,9 +296,9 @@ def register_section_item_tools(
             operation_name=f"add {noun}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
-    _annotate(_create, "items", Optional[items_type])
     mcp.tool(
         name=f"{tool_prefix}.item.create",
         description=(
@@ -259,12 +309,14 @@ def register_section_item_tools(
 
     async def _delete(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        item_ids: Optional[Any] = Field(
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        item_ids: Any = Field(
             default=None, description="Item id or list of item ids to remove."
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             if item_ids is None:
                 raise ValueError("item_ids is required")
             ops: List[Dict[str, Any]] = []
@@ -281,9 +333,9 @@ def register_section_item_tools(
             operation_name=f"remove {noun}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
-    _annotate(_delete, "item_ids", Optional[item_ids_type])
     mcp.tool(
         name=f"{tool_prefix}.item.delete",
         description=f"Remove one or more {noun} items by id.",
@@ -291,18 +343,35 @@ def register_section_item_tools(
 
     async def _update(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        items: Optional[Any] = Field(
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        items: Any = Field(
+            default=None, description=f"{noun.title()} item or list of items to update."
+        ),
+        clear: Any = Field(
             default=None,
-            description=f"{noun.title()} item or list of items to update.",
+            description=(
+                "Optional clear instructions. Shape: "
+                "`[{id: <item_id>, fields: [<field>, ...]}, ...]` "
+                "or `{<item_id>: [<field>, ...], ...}`. "
+                "Clearing is performed by writing schema-default placeholder values."
+            ),
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             if items is None:
                 raise ValueError("items is required")
             ops: List[Dict[str, Any]] = []
             for item in coerce_model_items(items, item_model):
                 ops.extend(build_update_ops_with_spec(item, spec))
+            # Apply explicit clears (useful to avoid "null spraying" in item payloads).
+            for instruction in coerce_clear_instructions(clear):
+                item_id = instruction["id"]
+                fields = instruction["fields"]
+                if not fields:
+                    continue
+                ops.extend(spec.build_update_ops(item_id, {field: None for field in fields}))
             result = await apply_section_item_patch(
                 client, resume_id, section, ops, label=label
             )
@@ -312,9 +381,9 @@ def register_section_item_tools(
             operation_name=f"update {noun}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
-    _annotate(_update, "items", Optional[items_type])
     mcp.tool(
         name=f"{tool_prefix}.item.update",
         description=(
@@ -338,17 +407,15 @@ def register_object_tools(
     extra_update_ops: Optional[Callable[[Dict[str, Any]], List[Dict[str, Any]]]] = None,
     reset_payload: Optional[Any] = None,
 ) -> None:
-    """Register standard get/update/create/delete tools for an object."""
-
-    def _annotate(func: Any, arg: str, annotation: Any) -> None:
-        func.__annotations__ = dict(func.__annotations__)
-        func.__annotations__[arg] = annotation
+    """Register standard get/patch/delete tools for an object."""
 
     async def _get(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             resume = _require_resume_object(await client.get_resume(resume_id))
             return spec.reshape(build_payload(resume))
 
@@ -356,6 +423,7 @@ def register_object_tools(
             operation_name=f"get {name}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     mcp.tool(
@@ -363,19 +431,33 @@ def register_object_tools(
         description=f"Get resume {name} fields.",
     )(_get)
 
-    async def _update(
+    async def _patch(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        payload: Optional[Any] = Field(
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        payload: Any = Field(
             default=None,
             description=payload_description,
         ),
+        clear_fields: Any = Field(
+            default=None,
+            description=(
+                "Optional list of field names to clear. "
+                "Clearing is performed by writing schema-default placeholder values."
+            ),
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            if payload is None:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
+            fields_to_clear = coerce_clear_fields(clear_fields)
+            if payload is None and not fields_to_clear:
                 raise ValueError(f"{name} payload is required")
-            normalized = coerce_object_input(payload, model, label=name)
-            payload_dict = normalized.model_dump(exclude_unset=True)
+            payload_dict: Dict[str, Any] = {}
+            if payload is not None:
+                normalized = coerce_object_input(payload, model, label=name)
+                payload_dict = normalized.model_dump(exclude_unset=True)
+            for field_name in fields_to_clear:
+                payload_dict.setdefault(field_name, None)
             extra_ops = extra_update_ops(dict(payload_dict)) if extra_update_ops else []
             ops = spec.build_update_ops(payload_dict, target)
             ops.extend(extra_ops)
@@ -385,40 +467,24 @@ def register_object_tools(
             return spec.reshape(build_payload(resume))
 
         return await execute_rxresume_operation(
-            operation_name=f"update {name}: {resume_id}",
+            operation_name=f"patch {name}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
-    _annotate(_update, "payload", Optional[payload_type])
     mcp.tool(
-        name=f"{tool_prefix}.update",
-        description=(f"Update resume {name} fields. " "All fields are optional."),
-    )(_update)
-
-    async def _create(
-        ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        payload: Optional[Any] = Field(
-            default=None,
-            description=payload_description,
-        ),
-    ) -> Dict[str, Any]:
-        return await _update(ctx=ctx, resume_id=resume_id, payload=payload)
-
-    _annotate(_create, "payload", Optional[payload_type])
-    mcp.tool(
-        name=f"{tool_prefix}.create",
-        description=(f"Create resume {name} fields. " "All fields are optional."),
-    )(_create)
+        name=f"{tool_prefix}.patch",
+        description=f"Patch resume {name} fields (merge semantics). All fields are optional.",
+    )(_patch)
 
     async def _delete(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
     ) -> Dict[str, Any]:
         if reset_payload is None:
             raise ValueError(f"No reset payload configured for {name}.")
-        return await _update(ctx=ctx, resume_id=resume_id, payload=reset_payload)
+        return await _patch(ctx=ctx, resume_id=resume_id, payload=reset_payload)
 
     mcp.tool(
         name=f"{tool_prefix}.delete",

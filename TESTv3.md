@@ -98,7 +98,7 @@ High-level recommendations: **collapse `create`+`update` into one patch-like met
    - **Benefit:** Predictable transformations; agents can reason about diffs.
 
 5. **Return lightweight metadata on success (configurable)**
-   - **Proposal:** Include at minimum `resume_id` in every success response; optionally `updatedAt` and `changedFields`.
+   - **Proposal:** Include at minimum `resume_id` in every success response
    - **Benefit:** Fewer follow-up calls; easier tool chaining for small models.
 
 ---

@@ -11,7 +11,7 @@ async def test_basics_round_trip_uses_label_and_url(
     # Desired: response schema uses the same keys it accepts label/url.
     payload = await call_tool_json(
         mcp_session,
-        "resume.basics.create",
+        "resume.basics.patch",
         {
             "resume_id": sample_resume_id,
             "payload": {
@@ -21,7 +21,7 @@ async def test_basics_round_trip_uses_label_and_url(
                 "phone": None,
                 "location": "Remote",
                 "url": "https://eva.example.com",
-                "description": "Plain text description",
+                "summary": "Plain text summary",
             },
         },
     )
@@ -120,7 +120,7 @@ async def test_doc_get_returns_canonical_schema(
     # Setup: write basics
     await call_tool_json(
         mcp_session,
-        "resume.basics.create",
+        "resume.basics.patch",
         {
             "resume_id": sample_resume_id,
             "payload": {
@@ -130,7 +130,7 @@ async def test_doc_get_returns_canonical_schema(
                 "phone": None,
                 "location": "Remote",
                 "url": "https://canon.example.com",
-                "description": "Canon description",
+                "summary": "Canon summary",
             },
         },
     )

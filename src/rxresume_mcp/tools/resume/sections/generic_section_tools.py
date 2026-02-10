@@ -32,6 +32,7 @@ from .reference import REFERENCE_SPEC, ReferenceItemInput
 from .section_item_tools import (
     apply_section_item_patch,
     build_update_ops_with_spec,
+    coerce_clear_instructions,
     extract_section_items,
     prepare_item_with_spec,
 )
@@ -168,10 +169,12 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
     )
     async def _list(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        section: str = Field(description=_section_param_description()),
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        section: Any = Field(default=None, description=_section_param_description()),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             binding = _resolve_section(section)
             resume = _require_resume_object(await client.get_resume(resume_id))
             items = extract_section_items(resume, binding.section, label=binding.label)
@@ -181,6 +184,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             operation_name=f"list section {section}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     @mcp.tool(
@@ -189,16 +193,21 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
     )
     async def _create(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        section: str = Field(description=_section_param_description()),
-        items: List[Dict[str, Any]] = Field(
-            description="List of item objects to add (wrap single items in a list)."
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        section: Any = Field(default=None, description=_section_param_description()),
+        items: Any = Field(
+            default=None,
+            description="List of item objects to add (wrap single items in a list).",
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             binding = _resolve_section(section)
-            if not items:
-                raise ValueError("items must be a non-empty list")
+            if items is None:
+                raise ValueError("items is required")
+            if not isinstance(items, list) or not items:
+                raise ValueError("items must be a non-empty list of objects")
             created_ids: List[str] = []
             ops: List[Dict[str, Any]] = []
             for raw in items:
@@ -220,6 +229,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             operation_name=f"create section items {section}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     @mcp.tool(
@@ -228,22 +238,43 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
     )
     async def _update(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        section: str = Field(description=_section_param_description()),
-        items: List[Dict[str, Any]] = Field(
-            description="List of item objects to update; each item must include id."
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        section: Any = Field(default=None, description=_section_param_description()),
+        items: Any = Field(
+            default=None,
+            description="List of item objects to update; each item must include id.",
+        ),
+        clear: Any = Field(
+            default=None,
+            description=(
+                "Optional clear instructions. Shape: "
+                "`[{id: <item_id>, fields: [<field>, ...]}, ...]` "
+                "or `{<item_id>: [<field>, ...], ...}`."
+            ),
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             binding = _resolve_section(section)
-            if not items:
-                raise ValueError("items must be a non-empty list")
+            if items is None:
+                raise ValueError("items is required")
+            if not isinstance(items, list) or not items:
+                raise ValueError("items must be a non-empty list of objects")
             ops: List[Dict[str, Any]] = []
             for raw in items:
                 if not isinstance(raw, dict):
                     raise ValueError("items must be a list of objects")
                 model_item = binding.item_model.model_validate(raw)
                 ops.extend(build_update_ops_with_spec(model_item, binding.spec))
+            for instruction in coerce_clear_instructions(clear):
+                item_id = instruction["id"]
+                fields = instruction["fields"]
+                if not fields:
+                    continue
+                ops.extend(
+                    binding.spec.build_update_ops(item_id, {field: None for field in fields})
+                )
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
             )
@@ -253,6 +284,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             operation_name=f"update section items {section}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     @mcp.tool(
@@ -261,16 +293,21 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
     )
     async def _delete(
         ctx: Context,
-        resume_id: str = Field(description="Resume ID"),
-        section: str = Field(description=_section_param_description()),
-        item_ids: List[str] = Field(
-            description="List of item ids to remove (wrap single ids in a list)."
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        section: Any = Field(default=None, description=_section_param_description()),
+        item_ids: Any = Field(
+            default=None,
+            description="List of item ids to remove (wrap single ids in a list).",
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
             binding = _resolve_section(section)
-            if not item_ids:
-                raise ValueError("item_ids must be a non-empty list")
+            if item_ids is None:
+                raise ValueError("item_ids is required")
+            if not isinstance(item_ids, list) or not item_ids:
+                raise ValueError("item_ids must be a non-empty list of strings")
             for item_id in item_ids:
                 if not isinstance(item_id, str) or not item_id:
                     raise ValueError("item_ids must contain non-empty strings only")
@@ -287,5 +324,6 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             operation_name=f"delete section items {section}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 

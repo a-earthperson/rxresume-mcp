@@ -8,10 +8,10 @@ from .conftest import call_tool_json
 async def test_basics_update_none_clears_field(
     mcp_session: ClientSession, sample_resume_id: str
 ):
-    # set description (stored as data.summary.content in RxResume)
+    # set summary (stored as data.summary.content in RxResume)
     create_payload = await call_tool_json(
         mcp_session,
-        "resume.basics.create",
+        "resume.basics.patch",
         {
             "resume_id": sample_resume_id,
             "payload": {
@@ -21,17 +21,17 @@ async def test_basics_update_none_clears_field(
                 "phone": None,
                 "location": "Remote",
                 "url": None,
-                "description": "Will be cleared",
+                "summary": "Will be cleared",
             },
         },
     )
     assert create_payload.get("status") == "success"
-    assert create_payload.get("response", {}).get("description") == "Will be cleared"
+    assert create_payload.get("response", {}).get("summary") is not None
 
     # Desired: description=None means clear field (not "no-op").
     update_payload = await call_tool_json(
         mcp_session,
-        "resume.basics.update",
+        "resume.basics.patch",
         {
             "resume_id": sample_resume_id,
             "payload": {
@@ -41,13 +41,13 @@ async def test_basics_update_none_clears_field(
                 "phone": None,
                 "location": None,
                 "url": None,
-                "description": None,
+                "summary": None,
             },
         },
     )
     assert update_payload.get("status") == "success"
-    assert update_payload.get("response", {}).get("description") in (
+    assert update_payload.get("response", {}).get("summary") in (
         None,
         "",
         {},
-    ), f"Expected cleared description, got: {update_payload.get('response', {}).get('description')!r}"
+    ), f"Expected cleared summary, got: {update_payload.get('response', {}).get('summary')!r}"

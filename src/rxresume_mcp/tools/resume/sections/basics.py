@@ -94,7 +94,9 @@ def register_basics_tools(mcp: FastMCP) -> None:
         model=BasicsInput,
         payload_type=BasicsInput,
         payload_description=(
-            "Basics object with any subset of fields to update."
+            "Basics object with any subset of fields to patch. "
+            "Omitted fields are unchanged; null/empty values clear fields. "
+            "Prefer clear_fields to clear without sending nulls."
         ),
         build_payload=_build_basics_payload,
         extra_update_ops=lambda _payload: [
