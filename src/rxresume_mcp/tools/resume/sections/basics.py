@@ -103,4 +103,5 @@ def register_basics_tools(mcp: FastMCP) -> None:
             patch_ops.op_replace(patch_ops.path_basics_field("customFields"), [])
         ],
         reset_payload=BASICS_RESET,
+        include_delete=False,
     )

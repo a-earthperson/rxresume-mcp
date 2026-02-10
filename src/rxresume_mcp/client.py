@@ -325,13 +325,11 @@ class RxResumeClient:
         name: str,
         slug: str,
         tags: Optional[List[str]] = None,
-        with_sample_data: bool = False,
     ) -> Any:
         payload = {
             "name": name,
             "slug": slug,
             "tags": tags or [],
-            "withSampleData": with_sample_data,
         }
         return await self._request("POST", "/resume/create", json_body=payload)
 

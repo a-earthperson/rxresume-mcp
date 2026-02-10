@@ -147,17 +147,13 @@ def _resolve_section(section: Any) -> _SectionBinding:
     binding = _SECTION_BINDINGS.get(canonical)
     if binding is None:
         allowed = ", ".join(patch_ops.SECTION_TYPES)
-        raise ValueError(
-            f"Unknown section: {raw}. Expected one of: {allowed}."
-        )
+        raise ValueError(f"Unknown section: {raw}. Expected one of: {allowed}.")
     return binding
 
 
 def _section_param_description() -> str:
     allowed = ", ".join(patch_ops.SECTION_TYPES)
-    return (
-        f"Section type. Allowed: {allowed}."
-    )
+    return f"Section type. Allowed: {allowed}."
 
 
 def register_generic_section_tools(mcp: FastMCP) -> None:
@@ -273,7 +269,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 if not fields:
                     continue
                 ops.extend(
-                    binding.spec.build_update_ops(item_id, {field: None for field in fields})
+                    binding.spec.build_update_ops(
+                        item_id, {field: None for field in fields}
+                    )
                 )
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
@@ -312,7 +310,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 if not isinstance(item_id, str) or not item_id:
                     raise ValueError("item_ids must contain non-empty strings only")
             ops: List[Dict[str, Any]] = [
-                patch_ops.op_remove(patch_ops.path_section_item(binding.section, item_id))
+                patch_ops.op_remove(
+                    patch_ops.path_section_item(binding.section, item_id)
+                )
                 for item_id in item_ids
             ]
             result = await apply_section_item_patch(
@@ -326,4 +326,3 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             ctx=ctx,
             resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
-

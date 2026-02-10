@@ -30,7 +30,7 @@ def register_tools(mcp: FastMCP) -> None:
     # Additive generic section CRUD (does not replace per-section tools).
     register_generic_section_tools(mcp)
     register_basics_tools(mcp)
-    
+
     # register_award_tools(mcp)
     # register_certification_tools(mcp)
     # register_experience_tools(mcp)

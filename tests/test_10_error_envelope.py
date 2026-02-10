@@ -87,7 +87,7 @@ async def test_duplicate_slug_returns_structured_error(mcp_session: ClientSessio
     first = await call_tool_json(
         mcp_session,
         "resume.doc.create",
-        {"name": "Dup", "slug": slug, "tags": ["pytest"], "with_sample_data": False},
+        {"name": "Dup", "slug": slug, "tags": ["pytest"]},
     )
     assert first.get("status") == "success"
     rid = first["response"].get("resume_id")
@@ -100,7 +100,6 @@ async def test_duplicate_slug_returns_structured_error(mcp_session: ClientSessio
                 "name": "Dup2",
                 "slug": slug,
                 "tags": ["pytest"],
-                "with_sample_data": False,
             },
         )
         _assert_structured_error(

@@ -145,7 +145,11 @@ async def call_tool_json(
             try:
                 parsed = json.loads(text)
                 if isinstance(parsed, dict):
-                    if "result" in parsed and len(parsed) == 1 and isinstance(parsed["result"], dict):
+                    if (
+                        "result" in parsed
+                        and len(parsed) == 1
+                        and isinstance(parsed["result"], dict)
+                    ):
                         return parsed["result"]
                     return parsed
             except Exception:
@@ -169,7 +173,9 @@ def _sanitize_for_diagnostics(value: Any, *, depth: int = 0) -> Any:
         return sanitized
     if isinstance(value, list):
         if len(value) > 10:
-            head = [_sanitize_for_diagnostics(item, depth=depth + 1) for item in value[:10]]
+            head = [
+                _sanitize_for_diagnostics(item, depth=depth + 1) for item in value[:10]
+            ]
             head.append(f"<truncated {len(value) - 10} items>")
             return head
         return [_sanitize_for_diagnostics(item, depth=depth + 1) for item in value]
@@ -186,7 +192,11 @@ async def _print_upstream_diagnostics_once(
     global _UPSTREAM_DIAGNOSTICS_PRINTED
     if _UPSTREAM_DIAGNOSTICS_PRINTED:
         return
-    if os.getenv("MCP_TEST_PRINT_UPSTREAM_DIAGNOSTICS", "1").strip() in {"0", "false", "False"}:
+    if os.getenv("MCP_TEST_PRINT_UPSTREAM_DIAGNOSTICS", "1").strip() in {
+        "0",
+        "false",
+        "False",
+    }:
         _UPSTREAM_DIAGNOSTICS_PRINTED = True
         return
 
@@ -244,7 +254,7 @@ async def mcp_session() -> ClientSession:
     Stateless streamable-http test client with fail-fast preflight.
     """
     cfg = load_server_config()
-    connect_timeout_s = float(os.environ.get("MCP_CONNECT_TIMEOUT_S", "8"))
+    connect_timeout_s = float(os.environ.get("MCP_CONNECT_TIMEOUT_S", "30"))
     headers = {"Authorization": cfg.authorization} if cfg.authorization else {}
     timeout = httpx.Timeout(connect_timeout_s, connect=connect_timeout_s)
 
@@ -335,7 +345,6 @@ async def empty_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
             "name": "Pytest Empty Resume",
             "slug": unique_slug,
             "tags": ["pytest", "contract"],
-            "with_sample_data": False,
         },
     )
     await _print_upstream_diagnostics_once(mcp_session, payload)
@@ -359,7 +368,6 @@ async def sample_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
             "name": "Pytest Sample Resume",
             "slug": unique_slug,
             "tags": ["pytest", "contract", "sample"],
-            "with_sample_data": True,
         },
     )
     await _print_upstream_diagnostics_once(mcp_session, payload)

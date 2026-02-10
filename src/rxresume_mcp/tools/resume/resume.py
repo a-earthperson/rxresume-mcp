@@ -13,7 +13,12 @@ from rxresume_mcp.client import RxResumeClient
 
 from ..core import execute_rxresume_operation
 from .sections.award import AWARD_SPEC
-from .sections.basics import BASICS_SPEC, _build_basics_payload
+from .sections.basics import (
+    BASICS_SPEC,
+    BASICS_TARGET,
+    BasicsInput,
+    _build_basics_payload,
+)
 from .sections.certification import CERTIFICATION_SPEC
 from .sections.education import EDUCATION_SPEC
 from .sections.experience import EXPERIENCE_SPEC
@@ -35,6 +40,7 @@ from .sections.section_item_tools import extract_section_items
 from .sections.sections import _require_resume_object
 from .sections.skill import SKILL_SPEC
 from .sections.volunteer import VOLUNTEER_SPEC
+from rxresume_mcp import patch_ops
 
 
 class ComposedSections(BaseModel):
@@ -287,8 +293,12 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
         tags: List[str] = Field(
             description="Tags to assign to resume", default_factory=list
         ),
-        with_sample_data: bool = Field(
-            description="If true, include sample data on creation", default=False
+        basics: Optional[Dict[str, Any]] = Field(
+            default=None,
+            description=(
+                "Optional basics object to apply immediately after creation. "
+                "Uses canonical MCP basics fields: name, label, email, phone, location, url, summary."
+            ),
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
@@ -296,14 +306,28 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
                 name=name,
                 slug=slug,
                 tags=tags,
-                with_sample_data=with_sample_data,
             )
             resume_id = _coerce_created_resume_id(created)
-            resume = await client.get_resume(resume_id=resume_id)
-            return {
-                "resume_id": resume_id,
-                "resume": _reshape_resume(resume),
-            }
+            if basics is None:
+                return {"resume_id": resume_id}
+
+            if not isinstance(basics, dict):
+                raise ValueError("basics must be an object when provided")
+            if not basics:
+                return {"resume_id": resume_id}
+
+            normalized = BasicsInput.model_validate(basics)
+            payload_dict = normalized.model_dump(exclude_unset=True)
+            ops = BASICS_SPEC.build_update_ops(payload_dict, BASICS_TARGET)
+            # Keep internal customFields stable (canonical schema does not surface it).
+            ops.append(
+                patch_ops.op_replace(patch_ops.path_basics_field("customFields"), [])
+            )
+            validated_ops = patch_ops.validate_patch_ops(ops)
+            patched = await client.patch_resume(resume_id, patch_ops=validated_ops)
+            resume = _require_resume_object(patched)
+            basics_payload = BASICS_SPEC.reshape(_build_basics_payload(resume))
+            return {"resume_id": resume_id, "basics": basics_payload}
 
         return await execute_rxresume_operation(
             operation_name=f"resume.create: {name}",

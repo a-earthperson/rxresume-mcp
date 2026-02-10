@@ -131,5 +131,3 @@ class SuppressedFieldAdapter:
     ) -> List[Dict[str, Any]]:
         """No update ops for hidden fields."""
         return []
-
-

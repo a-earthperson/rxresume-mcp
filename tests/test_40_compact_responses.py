@@ -20,7 +20,6 @@ async def test_doc_create_is_compact_by_default(
             "name": "Compact Create",
             "slug": unique_slug,
             "tags": ["pytest", "compact"],
-            "with_sample_data": True,
         },
     )
     assert payload.get("status") == "success"

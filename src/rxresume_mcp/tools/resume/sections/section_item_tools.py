@@ -134,7 +134,12 @@ def coerce_clear_instructions(value: Any) -> List[Dict[str, Any]]:
         for item_id, fields in value.items():
             if not isinstance(item_id, str) or not item_id:
                 raise ValueError("clear keys must be non-empty strings (item ids)")
-            instructions.append({"id": item_id, "fields": coerce_clear_fields(fields, label="clear.fields")})
+            instructions.append(
+                {
+                    "id": item_id,
+                    "fields": coerce_clear_fields(fields, label="clear.fields"),
+                }
+            )
         return instructions
     if isinstance(value, list):
         instructions = []
@@ -145,9 +150,16 @@ def coerce_clear_instructions(value: Any) -> List[Dict[str, Any]]:
             fields = entry.get("fields")
             if not isinstance(item_id, str) or not item_id:
                 raise ValueError("clear.id must be a non-empty string")
-            instructions.append({"id": item_id, "fields": coerce_clear_fields(fields, label="clear.fields")})
+            instructions.append(
+                {
+                    "id": item_id,
+                    "fields": coerce_clear_fields(fields, label="clear.fields"),
+                }
+            )
         return instructions
-    raise ValueError("clear must be an object mapping id->fields or a list of {id, fields}")
+    raise ValueError(
+        "clear must be an object mapping id->fields or a list of {id, fields}"
+    )
 
 
 def coerce_model_items(
@@ -371,7 +383,9 @@ def register_section_item_tools(
                 fields = instruction["fields"]
                 if not fields:
                     continue
-                ops.extend(spec.build_update_ops(item_id, {field: None for field in fields}))
+                ops.extend(
+                    spec.build_update_ops(item_id, {field: None for field in fields})
+                )
             result = await apply_section_item_patch(
                 client, resume_id, section, ops, label=label
             )
@@ -406,6 +420,7 @@ def register_object_tools(
     build_payload: Callable[[Dict[str, Any]], Any],
     extra_update_ops: Optional[Callable[[Dict[str, Any]], List[Dict[str, Any]]]] = None,
     reset_payload: Optional[Any] = None,
+    include_delete: bool = True,
 ) -> None:
     """Register standard get/patch/delete tools for an object."""
 
@@ -478,18 +493,46 @@ def register_object_tools(
         description=f"Patch resume {name} fields (merge semantics). All fields are optional.",
     )(_patch)
 
-    async def _delete(
-        ctx: Context,
-        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
-    ) -> Dict[str, Any]:
-        if reset_payload is None:
-            raise ValueError(f"No reset payload configured for {name}.")
-        return await _patch(ctx=ctx, resume_id=resume_id, payload=reset_payload)
+    if include_delete:
 
-    mcp.tool(
-        name=f"{tool_prefix}.delete",
-        description=f"Reset resume {name} fields to empty values.",
-    )(_delete)
+        async def _delete(
+            ctx: Context,
+            resume_id: Any = Field(
+                default=None, description="Resume ID (UUID string)."
+            ),
+        ) -> Dict[str, Any]:
+            if reset_payload is None:
+                raise ValueError(f"No reset payload configured for {name}.")
+
+            async def _operation(client: RxResumeClient) -> Any:
+                if not isinstance(resume_id, str) or not resume_id:
+                    raise ValueError("resume_id must be a non-empty string")
+                # Reuse the same patch building logic, but with the reset payload.
+                normalized = coerce_object_input(reset_payload, model, label=name)
+                payload_dict = normalized.model_dump(exclude_unset=True)
+                extra_ops = (
+                    extra_update_ops(dict(payload_dict)) if extra_update_ops else []
+                )
+                ops = spec.build_update_ops(payload_dict, target)
+                ops.extend(extra_ops)
+                validated_ops = patch_ops.validate_patch_ops(ops)
+                result = await client.patch_resume(resume_id, patch_ops=validated_ops)
+                resume = _require_resume_object(result)
+                return spec.reshape(build_payload(resume))
+
+            return await execute_rxresume_operation(
+                operation_name=f"reset {name}: {resume_id}",
+                operation_func=_operation,
+                ctx=ctx,
+                resume_id=(
+                    resume_id if isinstance(resume_id, str) and resume_id else None
+                ),
+            )
+
+        mcp.tool(
+            name=f"{tool_prefix}.delete",
+            description=f"Reset resume {name} fields to empty values.",
+        )(_delete)
 
 
 async def apply_section_item_patch(
