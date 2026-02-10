@@ -36,7 +36,7 @@ async def test_doc_create_is_compact_by_default(
 
 @pytest.mark.asyncio
 async def test_section_item_create_returns_delta_not_full_list(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     """
     Desired behavior:
@@ -46,12 +46,12 @@ async def test_section_item_create_returns_delta_not_full_list(
         mcp_session,
         "resume.section.profile.item.create",
         {
-            "resume_id": empty_resume_id,
+            "resume_id": sample_resume_id,
             "items": {
                 "id": None,
                 "network": "GitHub",
                 "username": "abc",
-                "website": "https://github.com/abc",
+                "url": "https://github.com/abc",
             },
         },
     )
@@ -64,12 +64,12 @@ async def test_section_item_create_returns_delta_not_full_list(
 
 @pytest.mark.asyncio
 async def test_doc_update_returns_delta_not_full_resume(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
         mcp_session,
         "resume.doc.update",
-        {"resume_id": empty_resume_id, "payload": {"tags": ["pytest", "delta"]}},
+        {"resume_id": sample_resume_id, "payload": {"tags": ["pytest", "delta"]}},
     )
     assert payload.get("status") == "success"
     resp = payload.get("response")
@@ -82,13 +82,13 @@ async def test_doc_update_returns_delta_not_full_resume(
 
 @pytest.mark.asyncio
 async def test_batch_create_returns_delta_not_full_list(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
         mcp_session,
         "resume.section.interest.item.create",
         {
-            "resume_id": empty_resume_id,
+            "resume_id": sample_resume_id,
             "items": [
                 {"id": None, "name": "Batch1", "keywords": ["a"]},
                 {"id": None, "name": "Batch2", "keywords": ["b"]},

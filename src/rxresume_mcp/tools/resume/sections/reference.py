@@ -15,40 +15,30 @@ REFERENCE_FIELDS = [
         name="name",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="name",
-            server_key="name",
             response_key="name",
-            default=" ",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
     FieldSpec(
         name="position",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="position", server_key="position", response_key="position"
-        ),
+        adapter=ScalarFieldAdapter(response_key="position"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
         name="contact",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="contact", server_key="phone", response_key="contact"
-        ),
+        adapter=ScalarFieldAdapter(response_key="contact", server_key="phone"),
     ),
     FieldSpec(
-        name="summary",
+        name="description",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="summary", server_key="description", response_key="summary"
-        ),
+        adapter=ScalarFieldAdapter(response_key="description"),
     ),
 ]
 

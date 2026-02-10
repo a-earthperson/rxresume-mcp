@@ -24,26 +24,20 @@ PROFILE_FIELDS = [
         name="network",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="network",
-            server_key="network",
             response_key="network",
-            default=" ",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
     FieldSpec(
         name="username",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="username", server_key="username", response_key="username"
-        ),
+        adapter=ScalarFieldAdapter(response_key="username"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
 ]
 

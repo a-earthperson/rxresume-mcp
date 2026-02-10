@@ -9,48 +9,34 @@ from mcp.server.fastmcp import FastMCP
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
     ScalarFieldAdapter,
-    SummaryHighlightsFieldAdapter,
     WebsiteFieldAdapter,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
-
-SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
 
 PROJECT_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="name",
-            server_key="name",
             response_key="name",
-            default=" ",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
     FieldSpec(
         name="period",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="period", server_key="period", response_key="period"
-        ),
+        adapter=ScalarFieldAdapter(response_key="period"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
-        name="summary",
+        name="description",
         field_type=str,
-        adapter=SUMMARY_HIGHLIGHTS_FIELD,
-    ),
-    FieldSpec(
-        name="highlights",
-        field_type=List[str],
-        adapter=SUMMARY_HIGHLIGHTS_FIELD,
+        adapter=ScalarFieldAdapter(response_key="description"),
     ),
 ]
 

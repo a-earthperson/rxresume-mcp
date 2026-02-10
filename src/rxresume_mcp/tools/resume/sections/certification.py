@@ -14,37 +14,27 @@ CERTIFICATION_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="name", server_key="title", response_key="name"
-        ),
+        adapter=ScalarFieldAdapter(response_key="name", server_key="title"),
     ),
     FieldSpec(
         name="issuer",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="issuer", server_key="issuer", response_key="issuer"
-        ),
+        adapter=ScalarFieldAdapter(response_key="issuer"),
     ),
     FieldSpec(
         name="period",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="period", server_key="date", response_key="period"
-        ),
+        adapter=ScalarFieldAdapter(response_key="period", server_key="date"),
     ),
     FieldSpec(
-        name="summary",
+        name="description",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="summary", server_key="description", response_key="summary"
-        ),
+        adapter=ScalarFieldAdapter(response_key="description"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
 ]
 

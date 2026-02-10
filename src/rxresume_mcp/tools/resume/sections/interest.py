@@ -20,10 +20,8 @@ INTEREST_FIELDS = [
         name="name",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="name",
-            server_key="name",
             response_key="name",
-            default=" ",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
@@ -31,10 +29,8 @@ INTEREST_FIELDS = [
         name="keywords",
         field_type=List[str],
         adapter=ScalarFieldAdapter(
-            input_key="keywords",
-            server_key="keywords",
             response_key="keywords",
-            default=[],
+            server_default=[],
         ),
     ),
 ]

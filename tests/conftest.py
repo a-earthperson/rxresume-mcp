@@ -21,6 +21,7 @@ pytest_plugins = ("pytest_asyncio",)
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
+_UPSTREAM_DIAGNOSTICS_PRINTED = False
 
 
 @dataclass(frozen=True)
@@ -130,7 +131,85 @@ async def call_tool_json(
         raise RuntimeError(
             f"Tool {tool_name} returned no parseable payload: {result!r}"
         )
+    # Some MCP servers wrap tool payloads as {"result": {...}}.
+    if isinstance(payload, dict) and "result" in payload and len(payload) == 1:
+        inner = payload.get("result")
+        if inner is not None:
+            payload = inner
+
+    # Normalize string payloads into a structured error shape so tests
+    # can assert on payload["status"] consistently.
+    if isinstance(payload, str):
+        text = payload.strip()
+        if text:
+            try:
+                parsed = json.loads(text)
+                if isinstance(parsed, dict):
+                    if "result" in parsed and len(parsed) == 1 and isinstance(parsed["result"], dict):
+                        return parsed["result"]
+                    return parsed
+            except Exception:
+                pass
+        return {"status": "error", "error": text or "<empty text response>"}
+
     return payload
+
+
+def _sanitize_for_diagnostics(value: Any, *, depth: int = 0) -> Any:
+    if depth > 5:
+        return "<max-depth>"
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            lower_key = str(key).lower()
+            if lower_key in {"authorization", "x-api-key", "api_key", "apikey"}:
+                sanitized[str(key)] = "<redacted>"
+                continue
+            sanitized[str(key)] = _sanitize_for_diagnostics(item, depth=depth + 1)
+        return sanitized
+    if isinstance(value, list):
+        if len(value) > 10:
+            head = [_sanitize_for_diagnostics(item, depth=depth + 1) for item in value[:10]]
+            head.append(f"<truncated {len(value) - 10} items>")
+            return head
+        return [_sanitize_for_diagnostics(item, depth=depth + 1) for item in value]
+    if isinstance(value, str):
+        if len(value) > 500:
+            return value[:500] + "...<truncated>"
+        return value
+    return value
+
+
+async def _print_upstream_diagnostics_once(
+    session: ClientSession, create_payload: Any
+) -> None:
+    global _UPSTREAM_DIAGNOSTICS_PRINTED
+    if _UPSTREAM_DIAGNOSTICS_PRINTED:
+        return
+    if os.getenv("MCP_TEST_PRINT_UPSTREAM_DIAGNOSTICS", "1").strip() in {"0", "false", "False"}:
+        _UPSTREAM_DIAGNOSTICS_PRINTED = True
+        return
+
+    try:
+        list_payload = await call_tool_json(
+            session,
+            "resume.doc.list",
+            {"tags": [], "sort": None},
+        )
+    except Exception as exc:
+        list_payload = {"diagnostic_error": str(exc)}
+
+    create_sanitized = _sanitize_for_diagnostics(create_payload)
+    list_sanitized = _sanitize_for_diagnostics(list_payload)
+    print(
+        "[pytest-upstream-diagnostics] create payload:",
+        json.dumps(create_sanitized, ensure_ascii=True, sort_keys=True),
+    )
+    print(
+        "[pytest-upstream-diagnostics] list payload:",
+        json.dumps(list_sanitized, ensure_ascii=True, sort_keys=True),
+    )
+    _UPSTREAM_DIAGNOSTICS_PRINTED = True
 
 
 def extract_resume_id(create_payload: Any) -> str:
@@ -259,6 +338,7 @@ async def empty_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
             "with_sample_data": False,
         },
     )
+    await _print_upstream_diagnostics_once(mcp_session, payload)
     rid = extract_resume_id(payload)
     try:
         yield rid
@@ -282,6 +362,7 @@ async def sample_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
             "with_sample_data": True,
         },
     )
+    await _print_upstream_diagnostics_once(mcp_session, payload)
     rid = extract_resume_id(payload)
     try:
         yield rid

@@ -20,10 +20,8 @@ SKILL_FIELDS = [
         name="name",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="name",
-            server_key="name",
             response_key="name",
-            default=" ",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
@@ -31,27 +29,20 @@ SKILL_FIELDS = [
         name="proficiency",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="proficiency",
-            server_key="proficiency",
             response_key="proficiency",
-            default="",
         ),
     ),
     FieldSpec(
         name="level",
         field_type=float,
-        adapter=ScalarFieldAdapter(
-            input_key="level", server_key="level", response_key="level", default=0
-        ),
+        adapter=ScalarFieldAdapter(response_key="level", server_default=0),
     ),
     FieldSpec(
         name="keywords",
         field_type=List[str],
         adapter=ScalarFieldAdapter(
-            input_key="keywords",
-            server_key="keywords",
             response_key="keywords",
-            default=[],
+            server_default=[],
         ),
     ),
 ]

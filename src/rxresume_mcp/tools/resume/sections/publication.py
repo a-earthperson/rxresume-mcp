@@ -9,51 +9,35 @@ from mcp.server.fastmcp import FastMCP
 from .section_item_tools import register_section_item_tools
 from .field_adapters import (
     ScalarFieldAdapter,
-    SummaryHighlightsFieldAdapter,
     WebsiteFieldAdapter,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
-
-SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
 
 PUBLICATION_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="name", server_key="title", response_key="name"
-        ),
+        adapter=ScalarFieldAdapter(response_key="name", server_key="title"),
     ),
     FieldSpec(
         name="publisher",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="publisher", server_key="publisher", response_key="publisher"
-        ),
+        adapter=ScalarFieldAdapter(response_key="publisher"),
     ),
     FieldSpec(
         name="period",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="period", server_key="date", response_key="period"
-        ),
+        adapter=ScalarFieldAdapter(response_key="period", server_key="date"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
-        name="summary",
+        name="description",
         field_type=str,
-        adapter=SUMMARY_HIGHLIGHTS_FIELD,
-    ),
-    FieldSpec(
-        name="highlights",
-        field_type=List[str],
-        adapter=SUMMARY_HIGHLIGHTS_FIELD,
+        adapter=ScalarFieldAdapter(response_key="description"),
     ),
 ]
 

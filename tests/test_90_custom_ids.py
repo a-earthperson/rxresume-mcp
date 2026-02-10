@@ -6,7 +6,7 @@ from .conftest import UUID_RE, call_tool_json
 
 @pytest.mark.asyncio
 async def test_create_ignores_or_rejects_client_supplied_item_id(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     """
     Desired behavior:
@@ -17,12 +17,12 @@ async def test_create_ignores_or_rejects_client_supplied_item_id(
         mcp_session,
         "resume.section.profile.item.create",
         {
-            "resume_id": empty_resume_id,
+            "resume_id": sample_resume_id,
             "items": {
                 "id": "custom-id-123",
                 "network": "Mastodon",
                 "username": "eva",
-                "website": "https://mastodon.social/@eva",
+                "url": "https://mastodon.social/@eva",
             },
         },
     )

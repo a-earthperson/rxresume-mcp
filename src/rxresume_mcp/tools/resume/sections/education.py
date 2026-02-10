@@ -9,79 +9,56 @@ from mcp.server.fastmcp import FastMCP
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
     ScalarFieldAdapter,
-    SummaryHighlightsFieldAdapter,
     WebsiteFieldAdapter,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
-
-SUMMARY_HIGHLIGHTS_FIELD = SummaryHighlightsFieldAdapter()
 
 EDUCATION_FIELDS = [
     FieldSpec(
         name="school",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="school",
-            server_key="school",
             response_key="school",
-            default=" ",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
     FieldSpec(
         name="degree",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="degree", server_key="degree", response_key="degree"
-        ),
+        adapter=ScalarFieldAdapter(response_key="degree"),
     ),
     FieldSpec(
         name="area",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="area", server_key="area", response_key="area"
-        ),
+        adapter=ScalarFieldAdapter(response_key="area"),
     ),
     FieldSpec(
         name="grade",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="grade",
-            server_key="grade",
             response_key="grade",
-            default="",
         ),
     ),
     FieldSpec(
         name="location",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="location", server_key="location", response_key="location"
-        ),
+        adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
         name="period",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="period", server_key="period", response_key="period"
-        ),
+        adapter=ScalarFieldAdapter(response_key="period"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
-        name="summary",
+        name="description",
         field_type=str,
-        adapter=SUMMARY_HIGHLIGHTS_FIELD,
-    ),
-    FieldSpec(
-        name="highlights",
-        field_type=List[str],
-        adapter=SUMMARY_HIGHLIGHTS_FIELD,
+        adapter=ScalarFieldAdapter(response_key="description"),
     ),
 ]
 

@@ -56,13 +56,12 @@ async def test_patch_target_not_found_is_structured(
             "resume_id": sample_resume_id,
             "items": {
                 "id": "does-not-exist",
-                "company": "Nope",
+                "name": "Nope",
                 "position": None,
                 "location": None,
                 "period": None,
-                "website": None,
-                "summary": None,
-                "highlights": None,
+                "url": None,
+                "description": None,
             },
         },
     )

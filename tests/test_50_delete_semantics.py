@@ -19,10 +19,10 @@ async def test_delete_unknown_resume_returns_not_found(mcp_session: ClientSessio
 
 @pytest.mark.asyncio
 async def test_delete_returns_structured_deleted_flag(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
-        mcp_session, "resume.doc.delete", {"resume_id": empty_resume_id}
+        mcp_session, "resume.doc.delete", {"resume_id": sample_resume_id}
     )
     assert payload.get("status") == "success"
     resp = payload.get("response")

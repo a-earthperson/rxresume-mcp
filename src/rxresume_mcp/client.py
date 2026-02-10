@@ -90,7 +90,7 @@ COMMON_DATA_FIELD_HINTS: Dict[str, str] = {
     "phone": "data.basics.phone",
     "location": "data.basics.location",
     "website": "data.basics.website.url",
-    "summary": "data.summary.content (HTML string)",
+    "description": "data.summary.content (HTML string)",
     "notes": "data.metadata.notes (HTML string)",
     "social_media": "data.sections.profiles.items or data.basics.customFields",
     "profiles": "data.sections.profiles.items",
@@ -280,7 +280,21 @@ class RxResumeClient:
 
         if "application/json" in content_type:
             try:
-                return response.json()
+                payload = response.json()
+                if (
+                    isinstance(payload, dict)
+                    and payload.get("unhandled") is True
+                    and payload.get("message") == "HTTPError"
+                ):
+                    raise RxResumeAPIError(
+                        response.status_code,
+                        (
+                            f"Upstream API returned unhandled HTTPError payload for "
+                            f"{method} {path}"
+                        ),
+                        payload=payload,
+                    )
+                return payload
             except ValueError:
                 return response.text
 

@@ -15,10 +15,9 @@ LANGUAGE_FIELDS = [
         name="name",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="name",
-            server_key="language",
             response_key="name",
-            default=" ",
+            server_key="language",
+            server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
@@ -26,18 +25,14 @@ LANGUAGE_FIELDS = [
         name="proficiency",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            input_key="proficiency",
-            server_key="fluency",
             response_key="proficiency",
-            default="",
+            server_key="fluency",
         ),
     ),
     FieldSpec(
         name="level",
         field_type=float,
-        adapter=ScalarFieldAdapter(
-            input_key="level", server_key="level", response_key="level", default=0
-        ),
+        adapter=ScalarFieldAdapter(response_key="level", server_default=0),
     ),
 ]
 

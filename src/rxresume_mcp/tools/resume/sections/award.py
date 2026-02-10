@@ -19,37 +19,27 @@ AWARD_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="name", server_key="title", response_key="name"
-        ),
+        adapter=ScalarFieldAdapter(response_key="name", server_key="title"),
     ),
     FieldSpec(
         name="awarder",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="awarder", server_key="awarder", response_key="awarder"
-        ),
+        adapter=ScalarFieldAdapter(response_key="awarder"),
     ),
     FieldSpec(
         name="period",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="period", server_key="date", response_key="period"
-        ),
+        adapter=ScalarFieldAdapter(response_key="period", server_key="date"),
     ),
     FieldSpec(
-        name="summary",
+        name="description",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="summary", server_key="description", response_key="summary"
-        ),
+        adapter=ScalarFieldAdapter(response_key="description"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
 ]
 

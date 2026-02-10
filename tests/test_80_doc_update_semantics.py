@@ -6,7 +6,7 @@ from .conftest import call_tool_json
 
 @pytest.mark.asyncio
 async def test_doc_update_allows_isPublic(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     """
     Desired behavior:
@@ -15,14 +15,14 @@ async def test_doc_update_allows_isPublic(
     payload = await call_tool_json(
         mcp_session,
         "resume.doc.update",
-        {"resume_id": empty_resume_id, "payload": {"isPublic": True}},
+        {"resume_id": sample_resume_id, "payload": {"isPublic": True}},
     )
     assert payload.get("status") == "success", payload
 
 
 @pytest.mark.asyncio
 async def test_doc_update_supports_partial_data_patch(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     """
     Desired behavior:
@@ -32,7 +32,7 @@ async def test_doc_update_supports_partial_data_patch(
         mcp_session,
         "resume.doc.update",
         {
-            "resume_id": empty_resume_id,
+            "resume_id": sample_resume_id,
             "payload": {"data": {"sections": {"basics": {"name": "Patched Name"}}}},
         },
     )

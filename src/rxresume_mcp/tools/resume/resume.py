@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+import uuid
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -161,33 +162,70 @@ def _resume_root_path(field: str) -> str:
     return f"/{field}"
 
 
+def _coerce_created_resume_id(create_result: Any) -> str:
+    """Normalize create response into a resume id string."""
+    if isinstance(create_result, str) and create_result:
+        return create_result
+    if isinstance(create_result, dict):
+        # Most common shapes first.
+        direct_resume_id = create_result.get("resume_id")
+        if isinstance(direct_resume_id, str) and direct_resume_id:
+            return direct_resume_id
+
+        direct_id = create_result.get("id")
+        if isinstance(direct_id, str) and direct_id:
+            return direct_id
+
+        # Some APIs return nested envelopes like:
+        # {"result": {"status": "...", "response": {"id": "..."}}}
+        # {"status": "...", "data": {"id": "..."}}
+        for key in ("response", "result", "data", "resume", "payload"):
+            if key in create_result:
+                nested = create_result.get(key)
+                try:
+                    return _coerce_created_resume_id(nested)
+                except ValueError:
+                    continue
+
+        # As a last resort, scan shallow values for UUID-like strings.
+        for value in create_result.values():
+            if isinstance(value, str) and value:
+                try:
+                    uuid.UUID(value)
+                    return value
+                except ValueError:
+                    continue
+
+    raise ValueError(
+        "Unable to extract resume_id from create response. "
+        "Expected a non-empty string or object containing id/resume_id. "
+        f"Received: {create_result!r}"
+    )
+
+
 RESUME_UPDATE_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="name", server_key="name", response_key="name"
-        ),
+        adapter=ScalarFieldAdapter(response_key="name"),
     ),
     FieldSpec(
         name="slug",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="slug", server_key="slug", response_key="slug"
-        ),
+        adapter=ScalarFieldAdapter(response_key="slug"),
     ),
     FieldSpec(
         name="tags",
         field_type=List[str],
         adapter=ScalarFieldAdapter(
-            input_key="tags", server_key="tags", response_key="tags", default=[]
+            response_key="tags", response_default=[], server_default=[]
         ),
     ),
     FieldSpec(
         name="data",
         field_type=Dict[str, Any],
         adapter=ScalarFieldAdapter(
-            input_key="data", server_key="data", response_key="data", default={}
+            response_key="data", response_default={}, server_default={}
         ),
     ),
 ]
@@ -254,12 +292,13 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            resume_id = await client.create_resume(
+            created = await client.create_resume(
                 name=name,
                 slug=slug,
                 tags=tags,
                 with_sample_data=with_sample_data,
             )
+            resume_id = _coerce_created_resume_id(created)
             resume = await client.get_resume(resume_id=resume_id)
             return {
                 "resume_id": resume_id,

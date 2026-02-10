@@ -17,51 +17,37 @@ BASICS_FIELDS = [
     FieldSpec(
         name="name",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="name", server_key="name", response_key="name"
-        ),
+        adapter=ScalarFieldAdapter(response_key="name"),
     ),
     FieldSpec(
         name="label",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="label", server_key="headline", response_key="label"
-        ),
+        adapter=ScalarFieldAdapter(response_key="label", server_key="headline"),
     ),
     FieldSpec(
         name="email",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="email", server_key="email", response_key="email"
-        ),
+        adapter=ScalarFieldAdapter(response_key="email"),
     ),
     FieldSpec(
         name="phone",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="phone", server_key="phone", response_key="phone"
-        ),
+        adapter=ScalarFieldAdapter(response_key="phone"),
     ),
     FieldSpec(
         name="location",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="location", server_key="location", response_key="location"
-        ),
+        adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
         name="url",
         field_type=str,
-        adapter=WebsiteFieldAdapter(
-            input_key="url", server_key="website", response_key="url"
-        ),
+        adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
         name="summary",
         field_type=str,
-        adapter=ScalarFieldAdapter(
-            input_key="summary", server_key="summary", response_key="summary"
-        ),
+        adapter=ScalarFieldAdapter(response_key="summary"),
     ),
 ]
 

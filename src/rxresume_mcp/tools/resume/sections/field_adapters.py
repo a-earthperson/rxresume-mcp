@@ -7,10 +7,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 from rxresume_mcp import patch_ops
 
-from .section_item_tools import (
-    build_summary_highlights_description,
-    split_summary_highlights_description,
-)
 from .item_spec import PatchTarget
 from .tool_helpers import (
     WebsiteInputLike,
@@ -23,34 +19,36 @@ from .tool_helpers import (
 class WebsiteFieldAdapter:
     """Adapter for website/url fields across inputs, storage, and responses."""
 
-    input_key: str = "url"
     response_key: str = "url"
-    server_key: str = "website"
+    server_key: str | None = None
 
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize website input and write to the server key."""
-        if self.input_key in payload:
-            value = payload.pop(self.input_key)
-            payload[self.server_key] = normalize_website_payload(value)
+        server_key = self.server_key or self.response_key
+        if self.response_key in payload:
+            value = payload.pop(self.response_key)
+            payload[server_key] = normalize_website_payload(value)
             return
-        payload.setdefault(self.server_key, normalize_website_payload(None))
+        payload.setdefault(server_key, normalize_website_payload(None))
 
-    def reshape(self, payload: Dict[str, Any]) -> Dict[str, str]:
+    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Return a response-ready website payload."""
-        value = payload.get(self.server_key)
+        server_key = self.server_key or self.response_key
+        value = payload.get(server_key)
         normalized = normalize_website_payload(value)
         if normalized["url"] is None or normalized["url"] == "":
-            return {}
+            return {self.response_key: None}
         return {self.response_key: normalized["url"]}
 
     def build_update_ops(
         self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         """Build patch ops for website updates."""
-        if self.input_key not in payload:
+        server_key = self.server_key or self.response_key
+        if self.response_key not in payload:
             return []
-        website_payload = normalize_website_for_patch(payload.pop(self.input_key))
-        base = target.field_path(self.server_key)
+        website_payload = normalize_website_for_patch(payload.pop(self.response_key))
+        base = target.field_path(server_key)
         return [patch_ops.op_replace(f"{base}/url", website_payload["url"])]
 
     @staticmethod
@@ -63,28 +61,32 @@ class WebsiteFieldAdapter:
 class ScalarFieldAdapter:
     """Adapter for scalar fields across inputs, storage, and responses."""
 
-    input_key: str
     response_key: str
-    server_key: str
-    default: Any = None
+    server_key: str | None = None
+    response_default: Any | None = None
+    server_default: Any | None = ""
     input_transform: Callable[[Any], Any] | None = None
     response_transform: Callable[[Any], Any] | None = None
 
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         """Normalize a scalar input and write to the server key."""
-        if self.input_key in payload:
-            value = payload.pop(self.input_key)
+        server_key = self.server_key or self.response_key
+        if self.response_key in payload:
+            value = payload.pop(self.response_key)
+            if value is None:
+                value = self.server_default
             if self.input_transform is not None:
                 value = self.input_transform(value)
-            payload[self.server_key] = value
+            payload[server_key] = value
             return
-        payload.setdefault(self.server_key, self.default)
+        payload.setdefault(server_key, self.server_default)
 
     def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Return a response-ready scalar payload."""
-        value = payload.get(self.server_key, self.default)
-        if value is None or value == "" or value == " ":
-            return {}
+        server_key = self.server_key or self.response_key
+        value = payload.get(server_key, self.server_default)
+        if value is None or value == self.server_default:
+            return {self.response_key: self.response_default}
 
         if self.response_transform is not None:
             value = self.response_transform(value)
@@ -95,12 +97,15 @@ class ScalarFieldAdapter:
         self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         """Build patch ops for scalar field updates."""
-        if self.input_key not in payload:
+        server_key = self.server_key or self.response_key
+        if self.response_key not in payload:
             return []
-        value = payload.pop(self.input_key)
+        value = payload.pop(self.response_key)
+        if value is None:
+            value = self.server_default
         if self.input_transform is not None:
             value = self.input_transform(value)
-        path = target.field_path(self.server_key)
+        path = target.field_path(server_key)
         return [patch_ops.op_replace(path, value)]
 
 
@@ -128,56 +133,3 @@ class SuppressedFieldAdapter:
         return []
 
 
-@dataclass(frozen=True)
-class SummaryHighlightsFieldAdapter:
-    """Adapter for summary/highlights fields backed by description HTML."""
-
-    summary_key: str = "summary"
-    highlights_key: str = "highlights"
-    response_summary_key: str = "summary"
-    response_highlights_key: str = "highlights"
-    server_key: str = "description"
-
-    def apply_defaults(self, payload: Dict[str, Any]) -> None:
-        """Normalize summary/highlights input into the description field."""
-        summary_present = self.summary_key in payload
-        highlights_present = self.highlights_key in payload
-        if (
-            not summary_present
-            and not highlights_present
-            and self.server_key in payload
-        ):
-            return
-        summary = payload.pop(self.summary_key, None)
-        highlights = payload.pop(self.highlights_key, None)
-        payload[self.server_key] = build_summary_highlights_description(
-            summary, highlights
-        )
-
-    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Return response-ready summary and highlights fields."""
-        summary, highlights = split_summary_highlights_description(
-            payload.get(self.server_key)
-        )
-        to_return = {}
-        if summary:
-            to_return[self.response_summary_key] = summary
-        if highlights and len(highlights) > 0:
-            to_return[self.response_highlights_key] = highlights
-        return to_return
-
-    def build_update_ops(
-        self, payload: Dict[str, Any], target: PatchTarget
-    ) -> List[Dict[str, Any]]:
-        """Build patch ops for description updates."""
-        summary_present = self.summary_key in payload
-        highlights_present = self.highlights_key in payload
-        if not summary_present and not highlights_present:
-            return []
-        summary = payload.pop(self.summary_key, None) if summary_present else None
-        highlights = (
-            payload.pop(self.highlights_key, None) if highlights_present else None
-        )
-        description = build_summary_highlights_description(summary, highlights)
-        path = target.field_path(self.server_key)
-        return [patch_ops.op_replace(path, description)]

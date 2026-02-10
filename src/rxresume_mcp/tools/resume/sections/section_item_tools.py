@@ -152,7 +152,7 @@ def prepare_item_with_spec(
     item: BaseModel, created_ids: List[str], spec: ItemSpec
 ) -> Dict[str, Any]:
     """Prepare an item payload using an ItemSpec."""
-    payload = item.model_dump(exclude_none=True)
+    payload = item.model_dump(exclude_unset=True)
     payload = _ensure_object_payload(payload, "item")
     payload["hidden"] = False
     payload = _ensure_item_id(payload, created_ids)
@@ -163,7 +163,7 @@ def prepare_item_with_spec(
 
 def build_update_ops_with_spec(item: BaseModel, spec: ItemSpec) -> List[Dict[str, Any]]:
     """Build update ops using an ItemSpec."""
-    payload = item.model_dump(exclude_none=True)
+    payload = item.model_dump(exclude_unset=True)
     item_id = payload.pop("id", None)
     if not item_id or not isinstance(item_id, str):
         raise ValueError("item.id is required for update")
@@ -368,7 +368,7 @@ def register_object_tools(
             if payload is None:
                 raise ValueError(f"{name} payload is required")
             normalized = coerce_object_input(payload, model, label=name)
-            payload_dict = normalized.model_dump(exclude_none=True)
+            payload_dict = normalized.model_dump(exclude_unset=True)
             extra_ops = extra_update_ops(dict(payload_dict)) if extra_update_ops else []
             ops = spec.build_update_ops(payload_dict, target)
             ops.extend(extra_ops)

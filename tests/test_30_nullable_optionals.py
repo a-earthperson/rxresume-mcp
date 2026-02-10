@@ -18,22 +18,20 @@ from .conftest import call_tool_json
                 "grade": None,
                 "location": None,
                 "period": None,
-                "website": None,
-                "summary": None,
-                "highlights": None,
+                "url": None,
+                "description": None,
             },
         ),
         (
             "resume.section.experience.item.create",
             {
                 "id": None,
-                "company": "Null Period Co",
+                "name": "Null Period Co",
                 "position": "Tester",
                 "location": None,
                 "period": None,
-                "website": None,
-                "summary": None,
-                "highlights": None,
+                "url": None,
+                "description": None,
             },
         ),
         (
@@ -42,33 +40,30 @@ from .conftest import call_tool_json
                 "id": None,
                 "name": "Project With Nulls",
                 "period": None,
-                "website": None,
-                "summary": None,
-                "highlights": None,
+                "url": None,
+                "description": None,
             },
         ),
         (
             "resume.section.publication.item.create",
             {
                 "id": None,
-                "title": "Pub With Null Date",
+                "name": "Pub With Null period",
                 "publisher": "P",
-                "date": None,
-                "website": None,
-                "summary": None,
-                "highlights": None,
+                "period": None,
+                "url": None,
+                "description": None,
             },
         ),
         (
             "resume.section.volunteer.item.create",
             {
                 "id": None,
-                "organization": "VolOrg",
+                "name": "VolOrg",
                 "location": None,
                 "period": None,
-                "website": None,
-                "summary": None,
-                "highlights": None,
+                "url": None,
+                "description": None,
             },
         ),
         (
@@ -77,8 +72,8 @@ from .conftest import call_tool_json
                 "id": None,
                 "name": "Ref Person",
                 "position": None,
-                "website": None,
-                "phone": None,
+                "url": None,
+                "contact": None,
                 "description": None,
             },
         ),
@@ -86,28 +81,31 @@ from .conftest import call_tool_json
             "resume.section.award.item.create",
             {
                 "id": None,
-                "title": "Award Without Date",
+                "name": "Award Without period",
                 "awarder": "Org",
-                "date": None,
+                "period": None,
                 "description": None,
-                "website": None,
+                "url": None,
             },
         ),
         (
             "resume.section.certification.item.create",
             {
                 "id": None,
-                "title": "Cert Without Date",
+                "name": "Cert Without period",
                 "issuer": "Org",
-                "date": None,
+                "period": None,
                 "description": None,
-                "website": None,
+                "url": None,
             },
         ),
     ],
 )
 async def test_create_accepts_null_for_optional_fields(
-    mcp_session: ClientSession, empty_resume_id: str, tool_name: str, item_payload: dict
+    mcp_session: ClientSession,
+    sample_resume_id: str,
+    tool_name: str,
+    item_payload: dict,
 ):
     """
     Desired behavior:
@@ -117,20 +115,20 @@ async def test_create_accepts_null_for_optional_fields(
     payload = await call_tool_json(
         mcp_session,
         tool_name,
-        {"resume_id": empty_resume_id, "items": item_payload},
+        {"resume_id": sample_resume_id, "items": item_payload},
     )
     assert payload.get("status") == "success", payload
 
 
 @pytest.mark.asyncio
 async def test_skill_create_allows_null_level_and_preserves_null(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
         mcp_session,
         "resume.section.skill.item.create",
         {
-            "resume_id": empty_resume_id,
+            "resume_id": sample_resume_id,
             "items": {
                 "id": None,
                 "name": "Null Level Skill",
@@ -151,31 +149,24 @@ async def test_skill_create_allows_null_level_and_preserves_null(
 
 @pytest.mark.asyncio
 async def test_language_create_allows_null_level_and_preserves_null(
-    mcp_session: ClientSession, empty_resume_id: str
+    mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
         mcp_session,
         "resume.section.language.item.create",
         {
-            "resume_id": empty_resume_id,
+            "resume_id": sample_resume_id,
             "items": {
                 "id": None,
-                "language": "Klingon",
-                "fluency": "Fluent",
+                "name": "Klingon",
+                "proficiency": "Fluent",
                 "level": None,
             },
         },
     )
     assert payload.get("status") == "success"
     items = payload["response"]
-    created = next(
-        (
-            i
-            for i in items
-            if i.get("language") == "Klingon" or i.get("name") == "Klingon"
-        ),
-        None,
-    )
+    created = next((i for i in items if i.get("name") == "Klingon"), None)
     assert created is not None
     assert (
         created.get("level") is None
