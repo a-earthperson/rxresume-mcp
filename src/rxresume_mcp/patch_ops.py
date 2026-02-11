@@ -4,9 +4,10 @@ Helpers for building JSON Patch operations.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Sequence, Union
+from typing import Any, Dict, List, Mapping, Sequence
 
-from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+import jsonpatch
+from jsonpointer import JsonPointer
 
 SECTION_TYPES: tuple[str, ...] = (
     "profiles",
@@ -23,74 +24,106 @@ SECTION_TYPES: tuple[str, ...] = (
     "references",
 )
 
+JsonPatchOp = Dict[str, Any]
 
-class _PatchBase(BaseModel):
-    model_config = {"populate_by_name": True, "extra": "forbid"}
+_OP_ALLOWED_KEYS: dict[str, frozenset[str]] = {
+    "add": frozenset({"op", "path", "value"}),
+    "remove": frozenset({"op", "path"}),
+    "replace": frozenset({"op", "path", "value"}),
+    "move": frozenset({"op", "from", "path"}),
+    "copy": frozenset({"op", "from", "path"}),
+    "test": frozenset({"op", "path", "value"}),
+}
 
-
-class JsonPatchAdd(_PatchBase):
-    op: Literal["add"]
-    path: str
-    value: Any
-
-
-class JsonPatchReplace(_PatchBase):
-    op: Literal["replace"]
-    path: str
-    value: Any
-
-
-class JsonPatchRemove(_PatchBase):
-    op: Literal["remove"]
-    path: str
-
-
-class JsonPatchTest(_PatchBase):
-    op: Literal["test"]
-    path: str
-    value: Any
-
-
-class JsonPatchMove(_PatchBase):
-    op: Literal["move"]
-    from_: str = Field(alias="from")
-    path: str
-
-    @property
-    def from_path(self) -> str:
-        return self.from_
-
-
-class JsonPatchCopy(_PatchBase):
-    op: Literal["copy"]
-    from_: str = Field(alias="from")
-    path: str
-
-    @property
-    def from_path(self) -> str:
-        return self.from_
-
-
-JsonPatchOp = Union[
-    JsonPatchAdd,
-    JsonPatchReplace,
-    JsonPatchRemove,
-    JsonPatchTest,
-    JsonPatchMove,
-    JsonPatchCopy,
-]
-
-_patch_ops_adapter = TypeAdapter(List[JsonPatchOp])
+_OP_REQUIRED_KEYS: dict[str, frozenset[str]] = {
+    "add": frozenset({"op", "path", "value"}),
+    "remove": frozenset({"op", "path"}),
+    "replace": frozenset({"op", "path", "value"}),
+    "move": frozenset({"op", "from", "path"}),
+    "copy": frozenset({"op", "from", "path"}),
+    "test": frozenset({"op", "path", "value"}),
+}
 
 
 def validate_patch_ops(
-    ops: Sequence[JsonPatchOp | Dict[str, Any]],
+    ops: Sequence[Mapping[str, Any] | Any],
 ) -> List[Dict[str, Any]]:
+    """
+    Validate JSON Patch ops (RFC 6902-ish) and normalize aliases.
+
+    This is intentionally strict:
+    - forbids unknown keys (mirrors prior Pydantic `extra="forbid"` behavior)
+    - normalizes `from_` -> `from` for move/copy ops
+    - ensures `op/path/from` are strings where required
+    """
+    if not isinstance(ops, Sequence):
+        raise ValueError("Invalid JSON Patch operations: expected a sequence")
+
+    normalized_ops: List[Dict[str, Any]] = []
+    for raw in list(ops):
+        if isinstance(raw, dict):
+            op = dict(raw)
+        elif hasattr(raw, "model_dump") and callable(getattr(raw, "model_dump")):
+            # Support any pydantic-ish inputs while keeping stable wire keys.
+            op = raw.model_dump(by_alias=True)
+        elif hasattr(raw, "dict") and callable(getattr(raw, "dict")):
+            op = raw.dict()
+        else:
+            raise ValueError(
+                "Invalid JSON Patch operations: each operation must be a dict-like object"
+            )
+
+        # Normalize common alias forms.
+        if "from_" in op and "from" not in op:
+            op["from"] = op.pop("from_")
+
+        op_name = op.get("op")
+        if not isinstance(op_name, str) or not op_name:
+            raise ValueError(
+                "Invalid JSON Patch operations: each operation must have a non-empty 'op' string"
+            )
+
+        allowed = _OP_ALLOWED_KEYS.get(op_name)
+        required = _OP_REQUIRED_KEYS.get(op_name)
+        if allowed is None or required is None:
+            # Let jsonpatch generate the canonical error string too, but keep the
+            # error message prefix stable for callers/tests.
+            raise ValueError(f"Invalid JSON Patch operations: unknown op '{op_name}'")
+
+        extra_keys = sorted(set(op.keys()) - set(allowed))
+        if extra_keys:
+            raise ValueError(
+                f"Invalid JSON Patch operations: unexpected keys for op '{op_name}': {extra_keys}"
+            )
+
+        missing_keys = sorted(set(required) - set(op.keys()))
+        if missing_keys:
+            raise ValueError(
+                f"Invalid JSON Patch operations: missing keys for op '{op_name}': {missing_keys}"
+            )
+
+        path = op.get("path")
+        if not isinstance(path, str) or not path:
+            raise ValueError(
+                "Invalid JSON Patch operations: 'path' must be a non-empty string"
+            )
+        if op_name in {"move", "copy"}:
+            from_path = op.get("from")
+            if not isinstance(from_path, str) or not from_path:
+                raise ValueError(
+                    "Invalid JSON Patch operations: 'from' must be a non-empty string for move/copy ops"
+                )
+
+        normalized_ops.append(op)
+
     try:
-        parsed = _patch_ops_adapter.validate_python(list(ops))
-    except ValidationError as exc:
+        # Structural validation. We do *not* apply patches here because that would
+        # incorrectly reject paths that are valid for the upstream resume object.
+        jsonpatch.JsonPatch(normalized_ops)
+    except Exception as exc:
         raise ValueError(f"Invalid JSON Patch operations: {exc}") from exc
-    return [op.model_dump(by_alias=True) for op in parsed]
+
+    return normalized_ops
 
 
 def op_add(path: str, value: Any) -> Dict[str, Any]:
@@ -117,12 +150,9 @@ def op_copy(from_path: str, path: str) -> Dict[str, Any]:
     return {"op": "copy", "from": from_path, "path": path}
 
 
-def _escape_segment(segment: str) -> str:
-    return segment.replace("~", "~0").replace("/", "~1")
-
-
 def _pointer(*segments: str) -> str:
-    return "/" + "/".join(_escape_segment(segment) for segment in segments)
+    # RFC 6901 encoding/escaping is delegated to jsonpointer.
+    return JsonPointer.from_parts(list(segments)).path
 
 
 def path_basics_field(field: str) -> str:

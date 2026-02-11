@@ -275,14 +275,19 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             if not isinstance(resume_id, str) or not resume_id:
                 raise ValueError("resume_id must be a non-empty string")
             binding = _resolve_section(section)
-            if items is None:
-                raise ValueError("items is required")
-            if not isinstance(items, list) or not items:
-                raise ValueError("items must be a non-empty list of objects")
-
             clear_instructions = coerce_clear_instructions(clear)
+            if items is None or (isinstance(items, list) and not items):
+                # Allow clear-only updates (Issue 9).
+                if not clear_instructions:
+                    raise ValueError("items is required unless clear is provided")
+                items_list: List[Any] = []
+            else:
+                if not isinstance(items, list) or not items:
+                    raise ValueError("items must be a non-empty list of objects")
+                items_list = items
+
             updated_ids: List[str] = []
-            for raw in items:
+            for raw in items_list:
                 if isinstance(raw, dict):
                     item_id = raw.get("id")
                     if isinstance(item_id, str) and item_id:
@@ -293,7 +298,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                     updated_ids.append(item_id)
 
             needs_existing_period = False
-            for raw in items:
+            for raw in items_list:
                 if isinstance(raw, dict):
                     has_start = "startDate" in raw
                     has_end = "endDate" in raw
@@ -320,7 +325,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 }
 
             ops: List[Dict[str, Any]] = []
-            for raw in items:
+            for raw in items_list:
                 if not isinstance(raw, dict):
                     raise ValueError("items must be a list of objects")
                 model_item = binding.item_model.model_validate(raw)
@@ -348,6 +353,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                         section_label=binding.label,
                     )
                 )
+
+            if not ops:
+                raise ValueError("No updates provided (provide items and/or clear fields).")
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
             )

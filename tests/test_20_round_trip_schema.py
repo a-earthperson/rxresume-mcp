@@ -39,23 +39,25 @@ async def test_profile_item_round_trip_uses_url_not_website(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.profile.item.create",
+        "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "items": {
-                "id": None,
-                "network": "X",
-                "username": "eva",
-                "url": "https://x.com/eva",
-            },
+            "section": "profiles",
+            "items": [
+                {
+                    "id": None,
+                    "network": "X",
+                    "username": "eva",
+                    "url": "https://x.com/eva",
+                }
+            ],
+            "return_mode": "delta",
         },
     )
     assert payload.get("status") == "success"
-    items = payload["response"]
-    # Current implementation returns a list; desired canonical shape would return url keys.
-    created = next(
-        i for i in items if i.get("network") == "X" and i.get("username") == "eva"
-    )
+    resp = payload["response"]
+    assert isinstance(resp, dict)
+    created = resp["created"][0]
     assert created.get("url") == "https://x.com/eva"
     assert "website" not in created
 
@@ -66,23 +68,28 @@ async def test_experience_item_round_trip_uses_name_not_company(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.work.item.create",
+        "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "items": {
-                "id": None,
-                "name": "Tooling Inc",
-                "position": "API Tester",
-                "location": "Remote",
-                "startDate": "2026",
-                "url": "https://tooling.example",
-                "description": "Did testing",
-            },
+            "section": "work",
+            "items": [
+                {
+                    "id": None,
+                    "name": "Tooling Inc",
+                    "position": "API Tester",
+                    "location": "Remote",
+                    "startDate": "2026",
+                    "url": "https://tooling.example",
+                    "description": "Did testing",
+                }
+            ],
+            "return_mode": "delta",
         },
     )
     assert payload.get("status") == "success"
-    items = payload["response"]
-    created = next(i for i in items if i.get("position") == "API Tester")
+    resp = payload["response"]
+    assert isinstance(resp, dict)
+    created = resp["created"][0]
     assert created.get("name") == "Tooling Inc"
     assert "company" not in created
 
@@ -93,21 +100,26 @@ async def test_language_item_round_trip_uses_name_and_proficiency(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.language.item.create",
+        "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "items": {
-                "id": None,
-                "language": "Spanish",
-                "fluency": "Basic",
-                "level": 2,
-            },
+            "section": "languages",
+            "items": [
+                {
+                    "id": None,
+                    "language": "Spanish",
+                    "fluency": "Basic",
+                    "level": 2,
+                }
+            ],
+            "return_mode": "delta",
         },
     )
     assert payload.get("status") == "success"
-    items = payload["response"]
-    created = next((i for i in items if i.get("language") == "Spanish"), None)
-    assert created is not None, f"Expected to find created language item in: {items!r}"
+    resp = payload["response"]
+    assert isinstance(resp, dict)
+    created = resp["created"][0]
+    assert created.get("language") == "Spanish"
     assert created.get("fluency") == "Basic"
 
 

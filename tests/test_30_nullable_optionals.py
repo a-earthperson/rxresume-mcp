@@ -125,18 +125,24 @@ async def test_create_accepts_null_for_optional_fields(
     - Optional string fields should accept `null` and be treated as "missing"
       (not raise INVALID_PATCH).
     - The generic section tool should accept list-shaped `items` and return
-      a list of canonical items (not internal keys).
+      a canonical item payload for the created items.
     """
     payload = await call_tool_json(
         mcp_session,
         "resume.section.create",
-        {"resume_id": sample_resume_id, "section": section, "items": [item_payload]},
+        {
+            "resume_id": sample_resume_id,
+            "section": section,
+            "items": [item_payload],
+            "return_mode": "delta",
+        },
     )
     assert payload.get("status") == "success", payload
-    items = payload.get("response")
-    assert isinstance(items, list), f"Expected list response, got: {type(items)}: {items!r}"
-    assert len(items) >= 1
-    created = items[-1]
+    resp = payload.get("response")
+    assert isinstance(resp, dict), f"Expected delta response dict, got: {resp!r}"
+    created_items = resp.get("created") or []
+    assert isinstance(created_items, list) and created_items
+    created = created_items[0]
     assert isinstance(created, dict)
     assert isinstance(created.get("id"), str) and created["id"]
     for key in expected_null_keys:
@@ -164,13 +170,16 @@ async def test_skill_create_allows_null_level_and_preserves_null(
                     "keywords": ["x"],
                 }
             ],
+            "return_mode": "delta",
         },
     )
     assert payload.get("status") == "success"
-    items = payload["response"]
-    assert isinstance(items, list)
-    created = next((i for i in items if i.get("name") == "Null Level Skill"), None)
-    assert created is not None
+    resp = payload.get("response")
+    assert isinstance(resp, dict)
+    created_items = resp.get("created") or []
+    assert isinstance(created_items, list) and created_items
+    created = created_items[0]
+    assert created.get("name") == "Null Level Skill"
     assert (
         created.get("rating") is None
     ), f"Expected rating to remain null, got: {created.get('rating')!r}"
@@ -194,13 +203,16 @@ async def test_language_create_allows_null_level_and_preserves_null(
                     "level": None,
                 }
             ],
+            "return_mode": "delta",
         },
     )
     assert payload.get("status") == "success"
-    items = payload["response"]
-    assert isinstance(items, list)
-    created = next((i for i in items if i.get("language") == "Klingon"), None)
-    assert created is not None
+    resp = payload.get("response")
+    assert isinstance(resp, dict)
+    created_items = resp.get("created") or []
+    assert isinstance(created_items, list) and created_items
+    created = created_items[0]
+    assert created.get("language") == "Klingon"
     assert (
         created.get("level") is None
     ), f"Expected level to remain null, got: {created.get('level')!r}"

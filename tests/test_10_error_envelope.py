@@ -51,17 +51,20 @@ async def test_patch_target_not_found_is_structured(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.work.item.update",
+        "resume.section.update",
         {
             "resume_id": sample_resume_id,
-            "items": {
-                "id": "does-not-exist",
-                "name": "Nope",
-                "position": None,
-                "location": None,
-                "url": None,
-                "description": None,
-            },
+            "section": "work",
+            "items": [
+                {
+                    "id": "does-not-exist",
+                    "name": "Nope",
+                    "position": None,
+                    "location": None,
+                    "url": None,
+                    "description": None,
+                }
+            ],
         },
     )
     _assert_structured_error(payload, expected_http=404)
@@ -73,20 +76,24 @@ async def test_missing_required_argument_errors_are_structured(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.profile.item.delete",
-        {"resume_id": sample_resume_id, "item_ids": None},
+        "resume.section.delete",
+        {"resume_id": sample_resume_id, "section": "profiles", "item_ids": None},
     )
     _assert_structured_error(payload, expected_http=400)
 
 
 @pytest.mark.asyncio
-async def test_create_rejects_slug_argument(mcp_session: ClientSession):
+async def test_section_create_rejects_non_list_items_is_structured(
+    mcp_session: ClientSession, sample_resume_id: str
+):
     payload = await call_tool_json(
         mcp_session,
-        "resume.doc.create",
-        {"name": "Slug Rejected", "slug": "should-not-be-accepted", "tags": ["pytest"]},
+        "resume.section.create",
+        {"resume_id": sample_resume_id, "section": "profiles", "items": {"not": "a list"}},
     )
-    _assert_structured_error(payload, expected_http=400, expected_code="VALIDATION_ERROR")
+    _assert_structured_error(
+        payload, expected_http=400, expected_code="VALIDATION_ERROR"
+    )
 
 
 @pytest.mark.asyncio

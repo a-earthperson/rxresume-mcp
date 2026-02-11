@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-import re
 import uuid
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
+from slugify import slugify as _lib_slugify
 
 from rxresume_mcp.client import RxResumeClient
 
 from ..core import execute_rxresume_operation
+from ..patching import _build_summary
 from .sections.award import AWARD_SPEC
 from .sections.basics import (
     BASICS_SPEC,
@@ -70,20 +71,16 @@ class ComposedResume(BaseModel):
     sections: ComposedSections
 
 
-_SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
-_SLUG_DASHES_RE = re.compile(r"-{2,}")
-
-
 def _slugify(value: Any) -> str:
     """Return a URL-safe slug fragment."""
     if not isinstance(value, str):
         return "resume"
-    lowered = value.strip().lower()
-    if not lowered:
+    stripped = value.strip()
+    if not stripped:
         return "resume"
-    lowered = _SLUG_NON_ALNUM_RE.sub("-", lowered)
-    lowered = _SLUG_DASHES_RE.sub("-", lowered).strip("-")
-    return lowered or "resume"
+    # Keep behavior stable: produce a simple, URL-safe fragment with a fallback.
+    slug = _lib_slugify(stripped, lowercase=True, separator="-", allow_unicode=False)
+    return slug or "resume"
 
 
 def _generate_resume_slug(name: str) -> str:
@@ -93,6 +90,8 @@ def _generate_resume_slug(name: str) -> str:
     Upstream requires a `slug`, but MCP intentionally hides it to reduce surface
     friction (and to avoid callers needing global uniqueness coordination).
     """
+    # Upstream appears to cap slugs around ~40 chars; keep a stable limit and
+    # trim trailing separators after truncation.
     base = _slugify(name)[:40].strip("-") or "resume"
     # UUID suffix makes collisions vanishingly unlikely.
     suffix = uuid.uuid4().hex[:10]
@@ -105,6 +104,28 @@ def _strip_slug(payload: Any) -> Any:
         return {k: _strip_slug(v) for k, v in payload.items() if k != "slug"}
     if isinstance(payload, list):
         return [_strip_slug(item) for item in payload]
+    return payload
+
+
+_STRIP_RESUME_VIEW_FIELDS: frozenset[str] = frozenset({"slug", "isPublic", "isLocked"})
+
+
+def _strip_resume_view_fields(payload: Any) -> Any:
+    """
+    Remove internal/undesired fields from all resume views.
+
+    Apply this to both resume summaries (doc.list) and full objects (doc.get),
+    so callers never see `isPublic` / `isLocked` (or `slug`) in any response.
+    """
+
+    if isinstance(payload, dict):
+        return {
+            k: _strip_resume_view_fields(v)
+            for k, v in payload.items()
+            if k not in _STRIP_RESUME_VIEW_FIELDS
+        }
+    if isinstance(payload, list):
+        return [_strip_resume_view_fields(item) for item in payload]
     return payload
 
 
@@ -283,6 +304,15 @@ RESUME_UPDATE_SPEC = build_spec("resume", RESUME_UPDATE_FIELDS)
 RESUME_UPDATE_TARGET = MappedPatchTarget(default_builder=_resume_root_path)
 
 
+class ResumeMetaUpdateInput(BaseModel):
+    """Document-level metadata update (intentionally limited)."""
+
+    model_config = {"extra": "forbid"}
+
+    name: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
 def register_resume_doc_tools(mcp: FastMCP) -> None:
     """Register tools that operate on resume documents."""
 
@@ -303,7 +333,7 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.list_resumes(tags=tags, sort=sort)
-            return _strip_slug(result)
+            return _strip_resume_view_fields(_strip_slug(result))
 
         return await execute_rxresume_operation(
             operation_name="resume.list",
@@ -318,12 +348,55 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.get_resume(resume_id=resume_id)
-            return _strip_slug(_reshape_resume(result))
+            return _strip_resume_view_fields(_strip_slug(_reshape_resume(result)))
 
         return await execute_rxresume_operation(
             operation_name=f"resume.get: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
+        )
+
+    @mcp.tool(name="resume.doc.update", description="Update resume name and/or tags")
+    async def update_resume(
+        ctx: Context,
+        resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
+        payload: Any = Field(
+            default=None,
+            description="Object with optional fields: {name?: string, tags?: string[]}.",
+        ),
+    ) -> Dict[str, Any]:
+        async def _operation(client: RxResumeClient) -> Any:
+            if not isinstance(resume_id, str) or not resume_id:
+                raise ValueError("resume_id must be a non-empty string")
+            if payload is None:
+                raise ValueError("payload is required")
+            if not isinstance(payload, dict):
+                raise ValueError("payload must be an object")
+            normalized = ResumeMetaUpdateInput.model_validate(payload)
+            if normalized.name is None and normalized.tags is None:
+                raise ValueError("payload must include at least one of: name, tags")
+
+            updated = await client.update_resume(
+                resume_id=resume_id,
+                name=normalized.name,
+                tags=normalized.tags,
+            )
+            # Keep responses compact: return only updated metadata if available.
+            if isinstance(updated, dict):
+                return _strip_resume_view_fields(
+                    {
+                        "resume_id": resume_id,
+                        "name": updated.get("name"),
+                        "tags": updated.get("tags"),
+                    }
+                )
+            return {"resume_id": resume_id}
+
+        return await execute_rxresume_operation(
+            operation_name=f"resume.update: {resume_id}",
+            operation_func=_operation,
+            ctx=ctx,
+            resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     @mcp.tool(name="resume.doc.create", description="Create a new resume")
@@ -383,8 +456,17 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
         resume_id: str = Field(description="Resume ID"),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            result = await client.delete_resume(resume_id=resume_id)
-            return _strip_slug(_reshape_resume(result))
+            # Upstream delete often returns an empty response body. Return a stable
+            # patch-summary-shaped response so callers can handle deletes uniformly.
+            await client.delete_resume(resume_id=resume_id)
+            return _build_summary(
+                resume_id,
+                ops=[],
+                created_ids=[],
+                include_result=False,
+                result=None,
+                extra={"deleted": True},
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"resume.delete: {resume_id}",

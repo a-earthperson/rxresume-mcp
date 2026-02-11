@@ -7,49 +7,76 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from copy import deepcopy
 from functools import lru_cache
-from pathlib import Path
+from importlib import resources as importlib_resources
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from deepmerge import Merger
 import httpx
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
+from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from . import DEFAULT_USER_AGENT
 
 logger = logging.getLogger(__name__)
 
+_DEEP_MERGER: Merger = Merger(
+    # Match prior behavior: merge dicts recursively, override everything else.
+    [(dict, ["merge"])],
+    ["override"],
+    ["override"],
+)
+
+_RESUME_SCHEMA_CANDIDATES: tuple[str, ...] = (
+    # Preferred: draft 2020-12 schema that matches Draft202012Validator.
+    "upstream-schema.json",
+    # Backward-compat fallback if a renamed schema ever ships.
+    "resume-schema.json",
+)
+
+_IDEMPOTENT_METHODS: frozenset[str] = frozenset({"GET", "HEAD", "OPTIONS"})
+_RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({408, 429, 500, 502, 503, 504})
+
+
+class _RetryableStatusError(RuntimeError):
+    """Internal sentinel exception used for retrying HTTP responses."""
+
+    def __init__(self, status_code: int):
+        super().__init__(f"Retryable HTTP status: {status_code}")
+        self.status_code = status_code
+
 
 def _deep_merge(base: Any, patch: Any) -> Any:
-    if isinstance(base, dict) and isinstance(patch, dict):
-        merged = dict(base)
-        for key, value in patch.items():
-            if key in merged:
-                merged[key] = _deep_merge(merged[key], value)
-            else:
-                merged[key] = value
-        return merged
-    return patch
+    """
+    Deep-merge dict patches into dict bases.
 
-
-def _find_resume_schema_path() -> Path | None:
-    package_candidate = (
-        Path(__file__).resolve().parent / "resources" / "resume-schema.json"
-    )
-    if package_candidate.is_file():
-        return package_candidate
-
-    return None
+    Semantics are intentionally conservative:
+    - dict + dict: recursive merge
+    - anything else: patch wins (override)
+    """
+    if not isinstance(base, dict) or not isinstance(patch, dict):
+        return patch
+    merged = deepcopy(base)
+    return _DEEP_MERGER.merge(merged, patch)
 
 
 @lru_cache(maxsize=1)
 def _load_resume_schema() -> Dict[str, Any]:
-    schema_path = _find_resume_schema_path()
-    if not schema_path:
-        raise FileNotFoundError(
-            "Resume schema file not found (expected packaged resources)."
-        )
-    return json.loads(schema_path.read_text(encoding="utf-8"))
+    resources_dir = importlib_resources.files("rxresume_mcp").joinpath("resources")
+    last_error: Exception | None = None
+    for filename in _RESUME_SCHEMA_CANDIDATES:
+        try:
+            raw = resources_dir.joinpath(filename).read_text(encoding="utf-8")
+        except FileNotFoundError as exc:
+            last_error = exc
+            continue
+        return json.loads(raw)
+    searched = ", ".join(_RESUME_SCHEMA_CANDIDATES)
+    raise FileNotFoundError(
+        f"Resume schema file not found in packaged resources (searched: {searched})."
+    ) from last_error
 
 
 def _make_basics_fields_optional(schema: Dict[str, Any]) -> Dict[str, Any]:
@@ -248,17 +275,39 @@ class RxResumeClient:
         accept: str = "application/json",
         content_type: Optional[str] = None,
     ) -> Any:
-        logger.debug("Requesting %s %s", method, path)
+        method_upper = method.upper()
+        logger.debug("Requesting %s %s", method_upper, path)
         headers = {"Accept": accept}
         if content_type:
             headers["Content-Type"] = content_type
-        response = await self.client.request(
-            method,
-            path,
-            params=params,
-            json=json_body,
-            headers=headers,
-        )
+        async def _send_once() -> httpx.Response:
+            return await self.client.request(
+                method_upper,
+                path,
+                params=params,
+                json=json_body,
+                headers=headers,
+            )
+
+        response: httpx.Response
+        if method_upper in _IDEMPOTENT_METHODS:
+            # Conservative retries: only idempotent methods, only transient codes.
+            async for attempt in AsyncRetrying(
+                retry=retry_if_exception_type(httpx.RequestError)
+                | retry_if_exception_type(_RetryableStatusError),
+                wait=wait_exponential(multiplier=0.2, min=0.2, max=2.0),
+                stop=stop_after_attempt(3),
+                reraise=True,
+            ):
+                with attempt:
+                    response = await _send_once()
+                    if response.status_code in _RETRYABLE_STATUS_CODES:
+                        # Ensure the connection is released before retrying.
+                        response.close()
+                        raise _RetryableStatusError(response.status_code)
+                    break
+        else:
+            response = await _send_once()
         content_type = response.headers.get("Content-Type", "")
 
         if response.status_code >= 400:

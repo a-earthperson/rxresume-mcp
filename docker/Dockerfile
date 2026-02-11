@@ -18,14 +18,14 @@ RUN python -m venv "${VIRTUAL_ENV}" \
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN --mount=type=bind,source=.,target=/workspace,readonly \
-  if [ -f /workspace/uv.lock ]; then cp /workspace/uv.lock /app/uv.lock; fi && \
-  if [ -f /app/uv.lock ]; then uv sync --frozen --no-install-project; else uv sync --no-install-project; fi
+# Keep Docker builds deterministic: copy uv.lock explicitly and sync frozen.
+# (The previous bind-mount approach can silently skip uv.lock in some builders.)
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
 
 COPY src ./src
 COPY README.md LICENSE ./
-RUN if [ -f /app/uv.lock ]; then uv sync --frozen; else uv sync; fi
+RUN uv sync --frozen
 
 ############################
 # Runtime: copy venv only

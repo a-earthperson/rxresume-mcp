@@ -16,21 +16,27 @@ async def test_description_is_not_wrapped_in_html(
     description = "Hello description"
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.project.item.create",
+        "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "items": {
-                "id": None,
-                "name": "HTML Test",
-                "startDate": "2026",
-                "url": None,
-                "description": description,
-            },
+            "section": "projects",
+            "items": [
+                {
+                    "id": None,
+                    "name": "HTML Test",
+                    "startDate": "2026",
+                    "url": None,
+                    "description": description,
+                }
+            ],
+            "return_mode": "delta",
         },
     )
     assert payload.get("status") == "success"
-    items = payload["response"]
-    created = next(i for i in items if i.get("name") == "HTML Test")
+    resp = payload["response"]
+    assert isinstance(resp, dict)
+    created = resp["created"][0]
+    assert created.get("name") == "HTML Test"
     assert (
         created.get("description") == description
     ), f"Expected plain text description, got: {created.get('description')!r}"

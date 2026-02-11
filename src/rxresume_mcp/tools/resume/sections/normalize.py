@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlsplit
 from typing import Any, Dict
 
 _URL_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*:")
@@ -12,7 +13,10 @@ def _normalize_url(value: str) -> str:
     """Ensure URL values include a scheme for consistent rendering."""
     if not value:
         return value
-    if _URL_SCHEME_RE.match(value):
+    # Preserve current behavior: treat any RFC3986 scheme as "already normalized".
+    # Note: host:port (e.g. localhost:3000) will be treated as having a scheme
+    # by urlsplit(), which matches the prior regex behavior.
+    if urlsplit(value).scheme:
         return value
     if value.startswith("//"):
         return f"https:{value}"
