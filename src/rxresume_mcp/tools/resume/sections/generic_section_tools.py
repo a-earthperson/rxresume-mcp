@@ -31,10 +31,13 @@ from .publication import PUBLICATION_SPEC, PublicationItemInput
 from .reference import REFERENCE_SPEC, ReferenceItemInput
 from .section_item_tools import (
     apply_section_item_patch,
+    build_update_ops_for_payload,
     build_update_ops_with_spec,
     coerce_clear_instructions,
+    coerce_return_mode,
     extract_section_items,
     prepare_item_with_spec,
+    shape_mutation_result,
 )
 from .sections import _require_resume_object
 from .skill import SKILL_SPEC, SkillItemInput
@@ -56,9 +59,10 @@ _SECTION_BINDINGS: Dict[str, _SectionBinding] = {
         spec=PROFILE_SPEC,
         item_model=ProfileItemInput,
     ),
-    "experience": _SectionBinding(
+    # JSON Resume: `work` (upstream stores this under `sections.experience`)
+    "work": _SectionBinding(
         section="experience",
-        label="Experience",
+        label="Work",
         spec=EXPERIENCE_SPEC,
         item_model=ExperienceItemInput,
     ),
@@ -98,9 +102,10 @@ _SECTION_BINDINGS: Dict[str, _SectionBinding] = {
         spec=AWARD_SPEC,
         item_model=AwardItemInput,
     ),
-    "certifications": _SectionBinding(
+    # JSON Resume: `certificates` (upstream stores this under `sections.certifications`)
+    "certificates": _SectionBinding(
         section="certifications",
-        label="Certifications",
+        label="Certificates",
         spec=CERTIFICATION_SPEC,
         item_model=CertificationItemInput,
     ),
@@ -132,9 +137,12 @@ _SECTION_ALIASES: Dict[str, str] = {
     "language": "languages",
     "interest": "interests",
     "award": "awards",
-    "certification": "certifications",
+    "certification": "certificates",
     "publication": "publications",
     "reference": "references",
+    # Back-compat / tolerance: old upstream-ish names.
+    "experience": "work",
+    "certifications": "certificates",
 }
 
 
@@ -146,13 +154,14 @@ def _resolve_section(section: Any) -> _SectionBinding:
     canonical = _SECTION_ALIASES.get(normalized, normalized)
     binding = _SECTION_BINDINGS.get(canonical)
     if binding is None:
-        allowed = ", ".join(patch_ops.SECTION_TYPES)
+        allowed = ", ".join(sorted(_SECTION_BINDINGS.keys()))
         raise ValueError(f"Unknown section: {raw}. Expected one of: {allowed}.")
     return binding
 
 
 def _section_param_description() -> str:
-    allowed = ", ".join(patch_ops.SECTION_TYPES)
+    # Expose JSON-Resume-facing section names.
+    allowed = ", ".join(sorted(_SECTION_BINDINGS.keys()))
     return f"Section type. Allowed: {allowed}."
 
 
@@ -195,6 +204,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             default=None,
             description="List of item objects to add (wrap single items in a list).",
         ),
+        return_mode: Any = Field(
+            default="delta",
+            description="Return mode for mutations: delta (default), all, or none.",
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             if not isinstance(resume_id, str) or not resume_id:
@@ -219,7 +232,12 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
             )
-            return binding.spec.reshape_items(result)
+            reshaped = binding.spec.reshape_items(result)
+            return shape_mutation_result(
+                all_items=reshaped,
+                return_mode=coerce_return_mode(return_mode, default="delta"),
+                created_ids=created_ids,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"create section items {section}: {resume_id}",
@@ -248,6 +266,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 "or `{<item_id>: [<field>, ...], ...}`."
             ),
         ),
+        return_mode: Any = Field(
+            default="delta",
+            description="Return mode for mutations: delta (default), all, or none.",
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             if not isinstance(resume_id, str) or not resume_id:
@@ -257,26 +279,84 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 raise ValueError("items is required")
             if not isinstance(items, list) or not items:
                 raise ValueError("items must be a non-empty list of objects")
+
+            clear_instructions = coerce_clear_instructions(clear)
+            updated_ids: List[str] = []
+            for raw in items:
+                if isinstance(raw, dict):
+                    item_id = raw.get("id")
+                    if isinstance(item_id, str) and item_id:
+                        updated_ids.append(item_id)
+            for instruction in clear_instructions:
+                item_id = instruction.get("id")
+                if isinstance(item_id, str) and item_id:
+                    updated_ids.append(item_id)
+
+            needs_existing_period = False
+            for raw in items:
+                if isinstance(raw, dict):
+                    has_start = "startDate" in raw
+                    has_end = "endDate" in raw
+                    if has_start ^ has_end:
+                        needs_existing_period = True
+                        break
+            if not needs_existing_period:
+                for instruction in clear_instructions:
+                    fields = instruction.get("fields") or []
+                    if ("startDate" in fields) ^ ("endDate" in fields):
+                        needs_existing_period = True
+                        break
+
+            existing_by_id: Dict[str, Dict[str, Any]] = {}
+            if needs_existing_period:
+                resume = _require_resume_object(await client.get_resume(resume_id))
+                existing_items = extract_section_items(
+                    resume, binding.section, label=binding.label
+                )
+                existing_by_id = {
+                    item.get("id"): item
+                    for item in existing_items
+                    if isinstance(item, dict) and isinstance(item.get("id"), str)
+                }
+
             ops: List[Dict[str, Any]] = []
             for raw in items:
                 if not isinstance(raw, dict):
                     raise ValueError("items must be a list of objects")
                 model_item = binding.item_model.model_validate(raw)
-                ops.extend(build_update_ops_with_spec(model_item, binding.spec))
-            for instruction in coerce_clear_instructions(clear):
+                ops.extend(
+                    build_update_ops_with_spec(
+                        model_item,
+                        binding.spec,
+                        existing_items_by_id=existing_by_id if needs_existing_period else None,
+                        section_label=binding.label,
+                    )
+                )
+
+            for instruction in clear_instructions:
                 item_id = instruction["id"]
                 fields = instruction["fields"]
                 if not fields:
                     continue
+                existing_item = existing_by_id.get(item_id) if needs_existing_period else None
                 ops.extend(
-                    binding.spec.build_update_ops(
-                        item_id, {field: None for field in fields}
+                    build_update_ops_for_payload(
+                        binding.spec,
+                        item_id=item_id,
+                        payload={field: None for field in fields},
+                        existing_item=existing_item,
+                        section_label=binding.label,
                     )
                 )
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
             )
-            return binding.spec.reshape_items(result)
+            reshaped = binding.spec.reshape_items(result)
+            return shape_mutation_result(
+                all_items=reshaped,
+                return_mode=coerce_return_mode(return_mode, default="delta"),
+                updated_ids=updated_ids,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"update section items {section}: {resume_id}",
@@ -296,6 +376,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         item_ids: Any = Field(
             default=None,
             description="List of item ids to remove (wrap single ids in a list).",
+        ),
+        return_mode: Any = Field(
+            default="delta",
+            description="Return mode for mutations: delta (default), all, or none.",
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
@@ -318,7 +402,12 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
             )
-            return binding.spec.reshape_items(result)
+            reshaped = binding.spec.reshape_items(result)
+            return shape_mutation_result(
+                all_items=reshaped,
+                return_mode=coerce_return_mode(return_mode, default="delta"),
+                deleted_ids=item_ids,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"delete section items {section}: {resume_id}",

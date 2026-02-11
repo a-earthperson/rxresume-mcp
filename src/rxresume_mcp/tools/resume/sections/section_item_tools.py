@@ -12,6 +12,7 @@ from rxresume_mcp import patch_ops
 from rxresume_mcp.client import RxResumeClient
 
 from ...core import execute_rxresume_operation
+from .field_adapters import parse_period_bounds
 from .normalize import _normalize_url_fields
 from .sections import (
     _ensure_item_id,
@@ -210,6 +211,61 @@ def extract_section_items(
     return items
 
 
+_RETURN_MODES = ("all", "delta", "none")
+
+
+def coerce_return_mode(value: Any, *, default: str = "all") -> str:
+    """Normalize return_mode values for mutation tools."""
+    if value is None:
+        value = default
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"return_mode must be one of: {', '.join(_RETURN_MODES)}")
+    normalized = value.strip().lower()
+    if normalized not in _RETURN_MODES:
+        raise ValueError(f"return_mode must be one of: {', '.join(_RETURN_MODES)}")
+    return normalized
+
+
+def _select_items_by_ids(items: Any, ids: set[str]) -> List[Any]:
+    """Filter an items list to dict entries with id in ids."""
+    if not isinstance(items, list) or not ids:
+        return []
+    selected: List[Any] = []
+    for item in items:
+        if isinstance(item, dict) and item.get("id") in ids:
+            selected.append(item)
+    return selected
+
+
+def shape_mutation_result(
+    *,
+    all_items: Any,
+    return_mode: str,
+    created_ids: List[str] | None = None,
+    updated_ids: List[str] | None = None,
+    deleted_ids: List[str] | None = None,
+) -> Any:
+    """
+    Shape mutation responses to avoid returning O(N) lists when not needed.
+
+    - all:   return the full (current) items list (back-compat).
+    - delta: return only created/updated items and deleted ids.
+    - none:  return ids only (no items payloads).
+    """
+    mode = coerce_return_mode(return_mode)
+    created = list(created_ids or [])
+    updated = list(updated_ids or [])
+    deleted = list(deleted_ids or [])
+    if mode == "all":
+        return all_items
+    if mode == "none":
+        return {"created_ids": created, "updated_ids": updated, "deleted_ids": deleted}
+    # delta
+    created_items = _select_items_by_ids(all_items, set(created))
+    updated_items = _select_items_by_ids(all_items, set(updated))
+    return {"created": created_items, "updated": updated_items, "deleted": deleted}
+
+
 def prepare_item_with_spec(
     item: BaseModel, created_ids: List[str], spec: ItemSpec
 ) -> Dict[str, Any]:
@@ -230,13 +286,85 @@ def prepare_item_with_spec(
     return payload
 
 
-def build_update_ops_with_spec(item: BaseModel, spec: ItemSpec) -> List[Dict[str, Any]]:
+_PERIOD_BOUND_KEYS = ("startDate", "endDate")
+
+
+def _fill_period_bounds_from_existing(
+    payload: Dict[str, Any],
+    *,
+    existing_item: Optional[Dict[str, Any]],
+    section_label: str = "item",
+) -> None:
+    """
+    If payload partially updates startDate/endDate, fill the missing side from existing `period`.
+
+    This keeps patch semantics safe: mutating one bound doesn't clobber the other.
+    """
+    has_start = _PERIOD_BOUND_KEYS[0] in payload
+    has_end = _PERIOD_BOUND_KEYS[1] in payload
+    if not has_start and not has_end:
+        return
+    if has_start and has_end:
+        return
+
+    if not existing_item:
+        raise ValueError(
+            f"{section_label} updates to startDate/endDate require an existing item to preserve the untouched bound"
+        )
+    existing_period = existing_item.get("period")
+    start_existing, end_existing = parse_period_bounds(existing_period)
+    if (
+        isinstance(existing_period, str)
+        and existing_period.strip()
+        and start_existing is None
+        and end_existing is None
+    ):
+        raise ValueError(
+            f"Cannot partially update {section_label} startDate/endDate because the existing upstream period "
+            "is not parseable. Provide both startDate and endDate to overwrite it."
+        )
+    if not has_start:
+        payload[_PERIOD_BOUND_KEYS[0]] = start_existing
+    if not has_end:
+        payload[_PERIOD_BOUND_KEYS[1]] = end_existing
+
+
+def build_update_ops_for_payload(
+    spec: ItemSpec,
+    *,
+    item_id: str,
+    payload: Dict[str, Any],
+    existing_item: Optional[Dict[str, Any]] = None,
+    section_label: str = "item",
+) -> List[Dict[str, Any]]:
+    """Build update ops for a raw payload dict with period-safe semantics."""
+    normalized = dict(payload)
+    _fill_period_bounds_from_existing(
+        normalized, existing_item=existing_item, section_label=section_label
+    )
+    return spec.build_update_ops(item_id, normalized)
+
+
+def build_update_ops_with_spec(
+    item: BaseModel,
+    spec: ItemSpec,
+    *,
+    existing_items_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    section_label: str = "item",
+) -> List[Dict[str, Any]]:
     """Build update ops using an ItemSpec."""
     payload = item.model_dump(exclude_unset=True)
     item_id = payload.pop("id", None)
     if not item_id or not isinstance(item_id, str):
         raise ValueError("item.id is required for update")
-    return spec.build_update_ops(item_id, payload)
+    existing_item = existing_items_by_id.get(item_id) if existing_items_by_id else None
+    return build_update_ops_for_payload(
+        spec,
+        item_id=item_id,
+        payload=payload,
+        existing_item=existing_item,
+        section_label=section_label,
+    )
 
 
 def register_section_item_tools(
@@ -284,6 +412,10 @@ def register_section_item_tools(
         items: Any = Field(
             default=None, description=f"{noun.title()} item or list of items to add."
         ),
+        return_mode: Any = Field(
+            default="delta",
+            description="Return mode for mutations: delta (default), all, or none.",
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             if not isinstance(resume_id, str) or not resume_id:
@@ -302,7 +434,12 @@ def register_section_item_tools(
             result = await apply_section_item_patch(
                 client, resume_id, section, ops, label=label
             )
-            return spec.reshape_items(result)
+            reshaped = spec.reshape_items(result)
+            return shape_mutation_result(
+                all_items=reshaped,
+                return_mode=return_mode,
+                created_ids=created_ids,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"add {noun}: {resume_id}",
@@ -325,21 +462,31 @@ def register_section_item_tools(
         item_ids: Any = Field(
             default=None, description="Item id or list of item ids to remove."
         ),
+        return_mode: Any = Field(
+            default="all",
+            description="Return mode for mutations: all (default), delta, or none.",
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             if not isinstance(resume_id, str) or not resume_id:
                 raise ValueError("resume_id must be a non-empty string")
             if item_ids is None:
                 raise ValueError("item_ids is required")
+            deleted_ids = coerce_item_ids(item_ids)
             ops: List[Dict[str, Any]] = []
-            for item_id in coerce_item_ids(item_ids):
+            for item_id in deleted_ids:
                 ops.append(
                     patch_ops.op_remove(patch_ops.path_section_item(section, item_id))
                 )
             result = await apply_section_item_patch(
                 client, resume_id, section, ops, label=label
             )
-            return spec.reshape_items(result)
+            reshaped = spec.reshape_items(result)
+            return shape_mutation_result(
+                all_items=reshaped,
+                return_mode=return_mode,
+                deleted_ids=deleted_ids,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"remove {noun}: {resume_id}",
@@ -368,28 +515,101 @@ def register_section_item_tools(
                 "Clearing is performed by writing schema-default placeholder values."
             ),
         ),
+        return_mode: Any = Field(
+            default="all",
+            description="Return mode for mutations: all (default), delta, or none.",
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             if not isinstance(resume_id, str) or not resume_id:
                 raise ValueError("resume_id must be a non-empty string")
-            if items is None:
-                raise ValueError("items is required")
+            clear_instructions = coerce_clear_instructions(clear)
+            if items is None or (isinstance(items, list) and not items):
+                # Allow "clear-only" updates: callers can clear fields without
+                # also providing items payloads (Issue 9 in the report).
+                if not clear_instructions:
+                    raise ValueError("items is required unless clear is provided")
+                model_items: List[ModelT] = []
+            else:
+                model_items = coerce_model_items(items, item_model)
+
+            updated_ids: List[str] = []
+            for model_item in model_items:
+                dumped = model_item.model_dump(exclude_unset=True)
+                item_id = dumped.get("id")
+                if isinstance(item_id, str) and item_id:
+                    updated_ids.append(item_id)
+            for instruction in clear_instructions:
+                item_id = instruction.get("id")
+                if isinstance(item_id, str) and item_id:
+                    updated_ids.append(item_id)
+
+            # If any update touches only one bound (startDate/endDate), we need
+            # existing upstream state so we can preserve the untouched bound.
+            needs_existing_period = False
+            for model_item in model_items:
+                dumped = model_item.model_dump(exclude_unset=True)
+                has_start = "startDate" in dumped
+                has_end = "endDate" in dumped
+                if has_start ^ has_end:
+                    needs_existing_period = True
+                    break
+            if not needs_existing_period:
+                for instruction in clear_instructions:
+                    fields = instruction.get("fields") or []
+                    if ("startDate" in fields) ^ ("endDate" in fields):
+                        needs_existing_period = True
+                        break
+
+            existing_by_id: Optional[Dict[str, Dict[str, Any]]] = None
+            if needs_existing_period:
+                resume = _require_resume_object(await client.get_resume(resume_id))
+                existing_items = extract_section_items(resume, section, label=label)
+                existing_by_id = {
+                    item.get("id"): item
+                    for item in existing_items
+                    if isinstance(item, dict) and isinstance(item.get("id"), str)
+                }
+
             ops: List[Dict[str, Any]] = []
-            for item in coerce_model_items(items, item_model):
-                ops.extend(build_update_ops_with_spec(item, spec))
+            for model_item in model_items:
+                ops.extend(
+                    build_update_ops_with_spec(
+                        model_item,
+                        spec,
+                        existing_items_by_id=existing_by_id,
+                        section_label=noun,
+                    )
+                )
+
             # Apply explicit clears (useful to avoid "null spraying" in item payloads).
-            for instruction in coerce_clear_instructions(clear):
+            for instruction in clear_instructions:
                 item_id = instruction["id"]
                 fields = instruction["fields"]
                 if not fields:
                     continue
+                existing_item = existing_by_id.get(item_id) if existing_by_id else None
                 ops.extend(
-                    spec.build_update_ops(item_id, {field: None for field in fields})
+                    build_update_ops_for_payload(
+                        spec,
+                        item_id=item_id,
+                        payload={field: None for field in fields},
+                        existing_item=existing_item,
+                        section_label=noun,
+                    )
                 )
+
+            if not ops:
+                raise ValueError("No updates provided (provide items and/or clear fields).")
             result = await apply_section_item_patch(
                 client, resume_id, section, ops, label=label
             )
-            return spec.reshape_items(result)
+            reshaped = spec.reshape_items(result)
+            return shape_mutation_result(
+                all_items=reshaped,
+                return_mode=return_mode,
+                updated_ids=updated_ids,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"update {noun}: {resume_id}",

@@ -8,25 +8,29 @@ from mcp.server.fastmcp import FastMCP
 
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
+    NoopFieldAdapter,
+    PeriodRangeAdapter,
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
 EDUCATION_FIELDS = [
+    # JSON Resume: education[].institution / studyType / score
     FieldSpec(
-        name="school",
+        name="institution",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            response_key="school",
+            response_key="institution",
+            server_key="school",
             server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
     FieldSpec(
-        name="degree",
+        name="studyType",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="degree"),
+        adapter=ScalarFieldAdapter(response_key="studyType", server_key="degree"),
     ),
     FieldSpec(
         name="area",
@@ -34,10 +38,11 @@ EDUCATION_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="area"),
     ),
     FieldSpec(
-        name="grade",
+        name="score",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            response_key="grade",
+            response_key="score",
+            server_key="grade",
         ),
     ),
     FieldSpec(
@@ -46,9 +51,20 @@ EDUCATION_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
-        name="period",
+        name="startDate",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period"),
+        adapter=NoopFieldAdapter(),
+    ),
+    FieldSpec(
+        name="endDate",
+        field_type=str,
+        adapter=NoopFieldAdapter(),
+    ),
+    # Stored upstream as `period`, exposed as startDate/endDate.
+    FieldSpec(
+        name="__period",
+        field_type=str,
+        adapter=PeriodRangeAdapter(server_key="period"),
     ),
     FieldSpec(
         name="url",

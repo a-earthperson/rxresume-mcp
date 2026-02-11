@@ -36,9 +36,10 @@ REFERENCE_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="contact", server_key="phone"),
     ),
     FieldSpec(
-        name="description",
+        # JSON Resume: references[].reference
+        name="reference",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="description"),
+        adapter=ScalarFieldAdapter(response_key="reference", server_key="description"),
     ),
 ]
 

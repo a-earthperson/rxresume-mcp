@@ -66,7 +66,7 @@ async def test_experience_item_round_trip_uses_name_not_company(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.experience.item.create",
+        "resume.section.work.item.create",
         {
             "resume_id": sample_resume_id,
             "items": {
@@ -74,7 +74,7 @@ async def test_experience_item_round_trip_uses_name_not_company(
                 "name": "Tooling Inc",
                 "position": "API Tester",
                 "location": "Remote",
-                "period": "2026",
+                "startDate": "2026",
                 "url": "https://tooling.example",
                 "description": "Did testing",
             },
@@ -98,19 +98,17 @@ async def test_language_item_round_trip_uses_name_and_proficiency(
             "resume_id": sample_resume_id,
             "items": {
                 "id": None,
-                "name": "Spanish",
-                "proficiency": "Basic",
+                "language": "Spanish",
+                "fluency": "Basic",
                 "level": 2,
             },
         },
     )
     assert payload.get("status") == "success"
     items = payload["response"]
-    created = next((i for i in items if i.get("name") == "Spanish"), None)
+    created = next((i for i in items if i.get("language") == "Spanish"), None)
     assert created is not None, f"Expected to find created language item in: {items!r}"
-    assert created.get("proficiency") == "Basic"
-    assert "language" not in created
-    assert "fluency" not in created
+    assert created.get("fluency") == "Basic"
 
 
 @pytest.mark.asyncio

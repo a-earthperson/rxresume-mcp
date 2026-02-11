@@ -8,6 +8,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
+    NoopFieldAdapter,
+    PeriodRangeAdapter,
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
 )
@@ -24,9 +26,20 @@ PROJECT_FIELDS = [
         ),
     ),
     FieldSpec(
-        name="period",
+        name="startDate",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period"),
+        adapter=NoopFieldAdapter(),
+    ),
+    FieldSpec(
+        name="endDate",
+        field_type=str,
+        adapter=NoopFieldAdapter(),
+    ),
+    # Stored upstream as `period`, exposed as startDate/endDate.
+    FieldSpec(
+        name="__period",
+        field_type=str,
+        adapter=PeriodRangeAdapter(server_key="period"),
     ),
     FieldSpec(
         name="url",

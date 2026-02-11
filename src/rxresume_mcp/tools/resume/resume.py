@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
+import re
 import uuid
 
 from mcp.server.fastmcp import Context, FastMCP
@@ -48,14 +49,16 @@ class ComposedSections(BaseModel):
 
     basics: Dict[str, Any]
     profiles: List[Any]
-    experience: List[Any]
+    # JSON Resume: `work` (upstream: sections.experience)
+    work: List[Any]
     education: List[Any]
     projects: List[Any]
     skills: List[Any]
     languages: List[Any]
     interests: List[Any]
     awards: List[Any]
-    certifications: List[Any]
+    # JSON Resume: `certificates` (upstream: sections.certifications)
+    certificates: List[Any]
     publications: List[Any]
     volunteer: List[Any]
     references: List[Any]
@@ -65,6 +68,44 @@ class ComposedResume(BaseModel):
     model_config = {"extra": "allow"}
 
     sections: ComposedSections
+
+
+_SLUG_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
+_SLUG_DASHES_RE = re.compile(r"-{2,}")
+
+
+def _slugify(value: Any) -> str:
+    """Return a URL-safe slug fragment."""
+    if not isinstance(value, str):
+        return "resume"
+    lowered = value.strip().lower()
+    if not lowered:
+        return "resume"
+    lowered = _SLUG_NON_ALNUM_RE.sub("-", lowered)
+    lowered = _SLUG_DASHES_RE.sub("-", lowered).strip("-")
+    return lowered or "resume"
+
+
+def _generate_resume_slug(name: str) -> str:
+    """
+    Generate a unique-ish slug for upstream API requirements.
+
+    Upstream requires a `slug`, but MCP intentionally hides it to reduce surface
+    friction (and to avoid callers needing global uniqueness coordination).
+    """
+    base = _slugify(name)[:40].strip("-") or "resume"
+    # UUID suffix makes collisions vanishingly unlikely.
+    suffix = uuid.uuid4().hex[:10]
+    return f"{base}-{suffix}"
+
+
+def _strip_slug(payload: Any) -> Any:
+    """Remove `slug` keys from arbitrary JSON-ish payloads."""
+    if isinstance(payload, dict):
+        return {k: _strip_slug(v) for k, v in payload.items() if k != "slug"}
+    if isinstance(payload, list):
+        return [_strip_slug(item) for item in payload]
+    return payload
 
 
 @dataclass(frozen=True)
@@ -87,15 +128,16 @@ class BasicsSectionAdapter:
 class SectionItemsAdapter:
     """Adapter for composing section items into resume sections."""
 
-    key: str
+    source_key: str
+    output_key: str
     spec: ItemSpec
 
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
         return None
 
     def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        items = extract_section_items(payload, self.key)
-        return {self.key: self.spec.reshape_items(items)}
+        items = extract_section_items(payload, self.source_key)
+        return {self.output_key: self.spec.reshape_items(items)}
 
     def build_update_ops(
         self, payload: Dict[str, Any], target: Any
@@ -104,18 +146,19 @@ class SectionItemsAdapter:
 
 
 _SECTION_ITEM_SPEC_MAP = (
-    ("profiles", PROFILE_SPEC),
-    ("experience", EXPERIENCE_SPEC),
-    ("education", EDUCATION_SPEC),
-    ("projects", PROJECT_SPEC),
-    ("skills", SKILL_SPEC),
-    ("languages", LANGUAGE_SPEC),
-    ("interests", INTEREST_SPEC),
-    ("awards", AWARD_SPEC),
-    ("certifications", CERTIFICATION_SPEC),
-    ("publications", PUBLICATION_SPEC),
-    ("volunteer", VOLUNTEER_SPEC),
-    ("references", REFERENCE_SPEC),
+    # (output_key, source_key, spec)
+    ("profiles", "profiles", PROFILE_SPEC),
+    ("work", "experience", EXPERIENCE_SPEC),
+    ("education", "education", EDUCATION_SPEC),
+    ("projects", "projects", PROJECT_SPEC),
+    ("skills", "skills", SKILL_SPEC),
+    ("languages", "languages", LANGUAGE_SPEC),
+    ("interests", "interests", INTEREST_SPEC),
+    ("awards", "awards", AWARD_SPEC),
+    ("certificates", "certifications", CERTIFICATION_SPEC),
+    ("publications", "publications", PUBLICATION_SPEC),
+    ("volunteer", "volunteer", VOLUNTEER_SPEC),
+    ("references", "references", REFERENCE_SPEC),
 )
 
 SECTION_FIELDS: List[FieldSpec] = [
@@ -124,11 +167,11 @@ SECTION_FIELDS: List[FieldSpec] = [
 SECTION_FIELDS.extend(
     [
         FieldSpec(
-            name=section,
+            name=output_key,
             field_type=List[Any],
-            adapter=SectionItemsAdapter(section, spec),
+            adapter=SectionItemsAdapter(source_key=source_key, output_key=output_key, spec=spec),
         )
-        for section, spec in _SECTION_ITEM_SPEC_MAP
+        for output_key, source_key, spec in _SECTION_ITEM_SPEC_MAP
     ]
 )
 
@@ -148,6 +191,8 @@ def _compose_resume_payload(resume: Dict[str, Any]) -> Dict[str, Any]:
         "isPublic",
         "metadata",
         "picture",
+        # MCP hides slug; upstream still requires it on create.
+        "slug",
     }
     composed = {
         key: value for key, value in resume.items() if key not in excluded_fields
@@ -216,11 +261,6 @@ RESUME_UPDATE_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="name"),
     ),
     FieldSpec(
-        name="slug",
-        field_type=str,
-        adapter=ScalarFieldAdapter(response_key="slug"),
-    ),
-    FieldSpec(
         name="tags",
         field_type=List[str],
         adapter=ScalarFieldAdapter(
@@ -262,7 +302,8 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
-            return await client.list_resumes(tags=tags, sort=sort)
+            result = await client.list_resumes(tags=tags, sort=sort)
+            return _strip_slug(result)
 
         return await execute_rxresume_operation(
             operation_name="resume.list",
@@ -277,7 +318,7 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.get_resume(resume_id=resume_id)
-            return _reshape_resume(result)
+            return _strip_slug(_reshape_resume(result))
 
         return await execute_rxresume_operation(
             operation_name=f"resume.get: {resume_id}",
@@ -289,7 +330,6 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     async def create_resume(
         ctx: Context,
         name: str = Field(description="Resume name"),
-        slug: str = Field(description="Resume slug"),
         tags: List[str] = Field(
             description="Tags to assign to resume", default_factory=list
         ),
@@ -302,6 +342,8 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
+            # Generate a slug server-side; upstream requires it but MCP hides it.
+            slug = _generate_resume_slug(name)
             created = await client.create_resume(
                 name=name,
                 slug=slug,
@@ -342,7 +384,7 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.delete_resume(resume_id=resume_id)
-            return _reshape_resume(result)
+            return _strip_slug(_reshape_resume(result))
 
         return await execute_rxresume_operation(
             operation_name=f"resume.delete: {resume_id}",

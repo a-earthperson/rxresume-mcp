@@ -12,40 +12,43 @@ from .conftest import call_tool_json
             "education",
             {
                 "id": None,
-                "school": "Test University",
-                "degree": "MSc",
+                "institution": "Test University",
+                "studyType": "MSc",
                 "area": "HCI",
-                "grade": None,
+                "score": None,
                 "location": None,
-                "period": None,
+                "startDate": None,
+                "endDate": None,
                 "url": None,
                 "description": None,
             },
-            ("grade", "location", "period", "url", "description"),
+            ("score", "location", "startDate", "endDate", "url", "description"),
         ),
         (
-            "experience",
+            "work",
             {
                 "id": None,
                 "name": "Null Period Co",
                 "position": "Tester",
                 "location": None,
-                "period": None,
+                "startDate": None,
+                "endDate": None,
                 "url": None,
                 "description": None,
             },
-            ("location", "period", "url", "description"),
+            ("location", "startDate", "endDate", "url", "description"),
         ),
         (
             "projects",
             {
                 "id": None,
                 "name": "Project With Nulls",
-                "period": None,
+                "startDate": None,
+                "endDate": None,
                 "url": None,
                 "description": None,
             },
-            ("period", "url", "description"),
+            ("startDate", "endDate", "url", "description"),
         ),
         (
             "publications",
@@ -53,23 +56,24 @@ from .conftest import call_tool_json
                 "id": None,
                 "name": "Pub With Null period",
                 "publisher": "P",
-                "period": None,
+                "releaseDate": None,
                 "url": None,
-                "description": None,
+                "summary": None,
             },
-            ("period", "url", "description"),
+            ("releaseDate", "url", "summary"),
         ),
         (
             "volunteer",
             {
                 "id": None,
-                "name": "VolOrg",
+                "organization": "VolOrg",
                 "location": None,
-                "period": None,
+                "startDate": None,
+                "endDate": None,
                 "url": None,
-                "description": None,
+                "summary": None,
             },
-            ("location", "period", "url", "description"),
+            ("location", "startDate", "endDate", "url", "summary"),
         ),
         (
             "references",
@@ -79,33 +83,33 @@ from .conftest import call_tool_json
                 "position": None,
                 "url": None,
                 "contact": None,
-                "description": None,
+                "reference": None,
             },
-            ("position", "url", "contact", "description"),
+            ("position", "url", "contact", "reference"),
         ),
         (
             "awards",
             {
                 "id": None,
-                "name": "Award Without period",
+                "title": "Award Without period",
                 "awarder": "Org",
-                "period": None,
-                "description": None,
+                "date": None,
+                "summary": None,
                 "url": None,
             },
-            ("period", "description", "url"),
+            ("date", "summary", "url"),
         ),
         (
-            "certifications",
+            "certificates",
             {
                 "id": None,
                 "name": "Cert Without period",
                 "issuer": "Org",
-                "period": None,
+                "date": None,
                 "description": None,
                 "url": None,
             },
-            ("period", "description", "url"),
+            ("date", "description", "url"),
         ),
     ],
 )
@@ -155,8 +159,8 @@ async def test_skill_create_allows_null_level_and_preserves_null(
                 {
                     "id": None,
                     "name": "Null Level Skill",
-                    "proficiency": "Beginner",
-                    "level": None,
+                    "level": "Beginner",
+                    "rating": None,
                     "keywords": ["x"],
                 }
             ],
@@ -168,8 +172,8 @@ async def test_skill_create_allows_null_level_and_preserves_null(
     created = next((i for i in items if i.get("name") == "Null Level Skill"), None)
     assert created is not None
     assert (
-        created.get("level") is None
-    ), f"Expected level to remain null, got: {created.get('level')!r}"
+        created.get("rating") is None
+    ), f"Expected rating to remain null, got: {created.get('rating')!r}"
 
 
 @pytest.mark.asyncio
@@ -185,8 +189,8 @@ async def test_language_create_allows_null_level_and_preserves_null(
             "items": [
                 {
                     "id": None,
-                    "name": "Klingon",
-                    "proficiency": "Fluent",
+                    "language": "Klingon",
+                    "fluency": "Fluent",
                     "level": None,
                 }
             ],
@@ -195,7 +199,7 @@ async def test_language_create_allows_null_level_and_preserves_null(
     assert payload.get("status") == "success"
     items = payload["response"]
     assert isinstance(items, list)
-    created = next((i for i in items if i.get("name") == "Klingon"), None)
+    created = next((i for i in items if i.get("language") == "Klingon"), None)
     assert created is not None
     assert (
         created.get("level") is None

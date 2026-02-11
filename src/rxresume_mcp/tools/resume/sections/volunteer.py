@@ -8,6 +8,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
+    NoopFieldAdapter,
+    PeriodRangeAdapter,
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
 )
@@ -15,10 +17,10 @@ from .item_spec import FieldSpec, build_item_model, build_item_spec
 
 VOLUNTEER_FIELDS = [
     FieldSpec(
-        name="name",
+        name="organization",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            response_key="name",
+            response_key="organization",
             server_key="organization",
             server_default=" ",
             input_transform=ensure_non_empty_string,
@@ -30,9 +32,20 @@ VOLUNTEER_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
-        name="period",
+        name="startDate",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period"),
+        adapter=NoopFieldAdapter(),
+    ),
+    FieldSpec(
+        name="endDate",
+        field_type=str,
+        adapter=NoopFieldAdapter(),
+    ),
+    # Stored upstream as `period`, exposed as startDate/endDate.
+    FieldSpec(
+        name="__period",
+        field_type=str,
+        adapter=PeriodRangeAdapter(server_key="period"),
     ),
     FieldSpec(
         name="url",
@@ -40,9 +53,9 @@ VOLUNTEER_FIELDS = [
         adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
-        name="description",
+        name="summary",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="description"),
+        adapter=ScalarFieldAdapter(response_key="summary", server_key="description"),
     ),
 ]
 

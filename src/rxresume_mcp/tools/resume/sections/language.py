@@ -11,21 +11,22 @@ from .field_adapters import ScalarFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
 LANGUAGE_FIELDS = [
+    # JSON Resume: languages[].language / fluency
     FieldSpec(
-        name="name",
+        name="language",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            response_key="name",
+            response_key="language",
             server_key="language",
             server_default=" ",
             input_transform=ensure_non_empty_string,
         ),
     ),
     FieldSpec(
-        name="proficiency",
+        name="fluency",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            response_key="proficiency",
+            response_key="fluency",
             server_key="fluency",
         ),
     ),

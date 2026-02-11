@@ -22,9 +22,9 @@ CERTIFICATION_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="issuer"),
     ),
     FieldSpec(
-        name="period",
+        name="date",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period", server_key="date"),
+        adapter=ScalarFieldAdapter(response_key="date"),
     ),
     FieldSpec(
         name="description",
@@ -54,10 +54,11 @@ def register_certification_tools(mcp: FastMCP) -> None:
     """Register tools that list or edit certification items."""
     register_section_item_tools(
         mcp,
-        tool_prefix="resume.section.certification",
+        # JSON Resume uses `certificates` for this section.
+        tool_prefix="resume.section.certificate",
         section="certifications",
-        label="Certifications",
-        noun="certification",
+        label="Certificates",
+        noun="certificate",
         spec=CERTIFICATION_SPEC,
         item_model=CertificationItemInput,
         items_type=CertificationItemsInput,

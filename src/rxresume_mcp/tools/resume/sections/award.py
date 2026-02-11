@@ -17,9 +17,9 @@ from .item_spec import FieldSpec, build_item_model, build_item_spec
 
 AWARD_FIELDS = [
     FieldSpec(
-        name="name",
+        name="title",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="name", server_key="title"),
+        adapter=ScalarFieldAdapter(response_key="title"),
     ),
     FieldSpec(
         name="awarder",
@@ -27,14 +27,14 @@ AWARD_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="awarder"),
     ),
     FieldSpec(
-        name="period",
+        name="date",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period", server_key="date"),
+        adapter=ScalarFieldAdapter(response_key="date"),
     ),
     FieldSpec(
-        name="description",
+        name="summary",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="description"),
+        adapter=ScalarFieldAdapter(response_key="summary", server_key="description"),
     ),
     FieldSpec(
         name="url",

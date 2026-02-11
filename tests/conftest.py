@@ -331,19 +331,13 @@ async def mcp_session() -> ClientSession:
     return StatelessMCPSession(url=cfg.url, headers=headers, timeout=timeout)
 
 
-@pytest.fixture
-def unique_slug() -> str:
-    return f"pytest-{uuid.uuid4().hex}"
-
-
 @pytest_asyncio.fixture
-async def empty_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
+async def empty_resume_id(mcp_session: ClientSession) -> str:
     payload = await call_tool_json(
         mcp_session,
         "resume.doc.create",
         {
             "name": "Pytest Empty Resume",
-            "slug": unique_slug,
             "tags": ["pytest", "contract"],
         },
     )
@@ -360,13 +354,12 @@ async def empty_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
 
 
 @pytest_asyncio.fixture
-async def sample_resume_id(mcp_session: ClientSession, unique_slug: str) -> str:
+async def sample_resume_id(mcp_session: ClientSession) -> str:
     payload = await call_tool_json(
         mcp_session,
         "resume.doc.create",
         {
             "name": "Pytest Sample Resume",
-            "slug": unique_slug,
             "tags": ["pytest", "contract", "sample"],
         },
     )

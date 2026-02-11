@@ -22,7 +22,7 @@ async def test_description_is_not_wrapped_in_html(
             "items": {
                 "id": None,
                 "name": "HTML Test",
-                "period": "2026",
+                "startDate": "2026",
                 "url": None,
                 "description": description,
             },

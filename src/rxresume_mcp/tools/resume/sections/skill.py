@@ -26,16 +26,20 @@ SKILL_FIELDS = [
         ),
     ),
     FieldSpec(
-        name="proficiency",
+        # JSON Resume: skills[].level is a string (map from upstream proficiency)
+        name="level",
         field_type=str,
         adapter=ScalarFieldAdapter(
-            response_key="proficiency",
+            response_key="level",
+            server_key="proficiency",
         ),
     ),
     FieldSpec(
-        name="level",
+        # Upstream stores a numeric 0-5 "level"; keep it but rename to avoid
+        # colliding with JSON Resume's string-valued skills[].level.
+        name="rating",
         field_type=float,
-        adapter=ScalarFieldAdapter(response_key="level", server_default=0),
+        adapter=ScalarFieldAdapter(response_key="rating", server_key="level", server_default=0),
     ),
     FieldSpec(
         name="keywords",

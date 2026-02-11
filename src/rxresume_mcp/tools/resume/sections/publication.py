@@ -25,9 +25,9 @@ PUBLICATION_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="publisher"),
     ),
     FieldSpec(
-        name="period",
+        name="releaseDate",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period", server_key="date"),
+        adapter=ScalarFieldAdapter(response_key="releaseDate", server_key="date"),
     ),
     FieldSpec(
         name="url",
@@ -35,9 +35,9 @@ PUBLICATION_FIELDS = [
         adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
-        name="description",
+        name="summary",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="description"),
+        adapter=ScalarFieldAdapter(response_key="summary", server_key="description"),
     ),
 ]
 

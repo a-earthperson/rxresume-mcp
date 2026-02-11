@@ -6,7 +6,7 @@ from .conftest import call_tool_json
 
 @pytest.mark.asyncio
 async def test_doc_create_is_compact_by_default(
-    mcp_session: ClientSession, unique_slug: str
+    mcp_session: ClientSession,
 ):
     """
     Desired behavior:
@@ -18,7 +18,6 @@ async def test_doc_create_is_compact_by_default(
         "resume.doc.create",
         {
             "name": "Compact Create",
-            "slug": unique_slug,
             "tags": ["pytest", "compact"],
         },
     )

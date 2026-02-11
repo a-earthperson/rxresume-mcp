@@ -51,7 +51,7 @@ async def test_patch_target_not_found_is_structured(
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.experience.item.update",
+        "resume.section.work.item.update",
         {
             "resume_id": sample_resume_id,
             "items": {
@@ -59,7 +59,6 @@ async def test_patch_target_not_found_is_structured(
                 "name": "Nope",
                 "position": None,
                 "location": None,
-                "period": None,
                 "url": None,
                 "description": None,
             },
@@ -81,33 +80,13 @@ async def test_missing_required_argument_errors_are_structured(
 
 
 @pytest.mark.asyncio
-async def test_duplicate_slug_returns_structured_error(mcp_session: ClientSession):
-    slug = f"pytest-dup-{uuid.uuid4().hex}"
-
-    first = await call_tool_json(
+async def test_create_rejects_slug_argument(mcp_session: ClientSession):
+    payload = await call_tool_json(
         mcp_session,
         "resume.doc.create",
-        {"name": "Dup", "slug": slug, "tags": ["pytest"]},
+        {"name": "Slug Rejected", "slug": "should-not-be-accepted", "tags": ["pytest"]},
     )
-    assert first.get("status") == "success"
-    rid = first["response"].get("resume_id")
-
-    try:
-        second = await call_tool_json(
-            mcp_session,
-            "resume.doc.create",
-            {
-                "name": "Dup2",
-                "slug": slug,
-                "tags": ["pytest"],
-            },
-        )
-        _assert_structured_error(
-            second, expected_http=400, expected_code="RESUME_SLUG_ALREADY_EXISTS"
-        )
-    finally:
-        if rid:
-            await call_tool_json(mcp_session, "resume.doc.delete", {"resume_id": rid})
+    _assert_structured_error(payload, expected_http=400, expected_code="VALIDATION_ERROR")
 
 
 @pytest.mark.asyncio

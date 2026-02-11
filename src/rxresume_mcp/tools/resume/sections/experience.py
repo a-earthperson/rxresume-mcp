@@ -8,6 +8,8 @@ from mcp.server.fastmcp import FastMCP
 
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
+    NoopFieldAdapter,
+    PeriodRangeAdapter,
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
 )
@@ -35,9 +37,20 @@ EXPERIENCE_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
-        name="period",
+        name="startDate",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="period"),
+        adapter=NoopFieldAdapter(),
+    ),
+    FieldSpec(
+        name="endDate",
+        field_type=str,
+        adapter=NoopFieldAdapter(),
+    ),
+    # Stored upstream as `period`, exposed as startDate/endDate.
+    FieldSpec(
+        name="__period",
+        field_type=str,
+        adapter=PeriodRangeAdapter(server_key="period"),
     ),
     FieldSpec(
         name="url",
@@ -64,10 +77,11 @@ def register_experience_tools(mcp: FastMCP) -> None:
     """Register tools that list or edit experience items."""
     register_section_item_tools(
         mcp,
-        tool_prefix="resume.section.experience",
+        # JSON Resume uses `work` for this section.
+        tool_prefix="resume.section.work",
         section="experience",
-        label="Experience",
-        noun="experience",
+        label="Work",
+        noun="work",
         spec=EXPERIENCE_SPEC,
         item_model=ExperienceItemInput,
         items_type=ExperienceItemsInput,
