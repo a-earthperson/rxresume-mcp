@@ -22,6 +22,7 @@ from .award import AWARD_SPEC, AwardItemInput
 from .certification import CERTIFICATION_SPEC, CertificationItemInput
 from .education import EDUCATION_SPEC, EducationItemInput
 from .experience import EXPERIENCE_SPEC, ExperienceItemInput
+from .field_adapters import ParagraphListAdapter
 from .interest import INTEREST_SPEC, InterestItemInput
 from .item_spec import ItemSpec
 from .language import LANGUAGE_SPEC, LanguageItemInput
@@ -312,8 +313,38 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                         needs_existing_period = True
                         break
 
+            needs_existing_paragraph_list = False
+            paragraph_list_adapters = [
+                a for a in binding.spec.adapters if isinstance(a, ParagraphListAdapter)
+            ]
+            if paragraph_list_adapters:
+                for raw in items_list:
+                    if not isinstance(raw, dict):
+                        continue
+                    for adapter in paragraph_list_adapters:
+                        has_p = adapter.paragraph_key in raw
+                        has_l = adapter.listitems_key in raw
+                        if has_p ^ has_l:
+                            needs_existing_paragraph_list = True
+                            break
+                    if needs_existing_paragraph_list:
+                        break
+            if paragraph_list_adapters and not needs_existing_paragraph_list:
+                for instruction in clear_instructions:
+                    fields = instruction.get("fields") or []
+                    for adapter in paragraph_list_adapters:
+                        has_p = adapter.paragraph_key in fields
+                        has_l = adapter.listitems_key in fields
+                        if has_p ^ has_l:
+                            needs_existing_paragraph_list = True
+                            break
+                    if needs_existing_paragraph_list:
+                        break
+
+            needs_existing = needs_existing_period or needs_existing_paragraph_list
+
             existing_by_id: Dict[str, Dict[str, Any]] = {}
-            if needs_existing_period:
+            if needs_existing:
                 resume = _require_resume_object(await client.get_resume(resume_id))
                 existing_items = extract_section_items(
                     resume, binding.section, label=binding.label
@@ -333,9 +364,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                     build_update_ops_with_spec(
                         model_item,
                         binding.spec,
-                        existing_items_by_id=(
-                            existing_by_id if needs_existing_period else None
-                        ),
+                        existing_items_by_id=existing_by_id if needs_existing else None,
                         section_label=binding.label,
                     )
                 )
@@ -345,9 +374,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 fields = instruction["fields"]
                 if not fields:
                     continue
-                existing_item = (
-                    existing_by_id.get(item_id) if needs_existing_period else None
-                )
+                existing_item = existing_by_id.get(item_id) if needs_existing else None
                 ops.extend(
                     build_update_ops_for_payload(
                         binding.spec,

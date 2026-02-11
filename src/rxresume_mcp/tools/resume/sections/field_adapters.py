@@ -19,6 +19,137 @@ _ISO8601_LOOSE_RE = re.compile(
     r"^([1-2][0-9]{3}-[0-1][0-9]-[0-3][0-9]|[1-2][0-9]{3}-[0-1][0-9]|[1-2][0-9]{3})$"
 )
 
+_PL_UL_RE = re.compile(r"<ul[^>]*>.*?</ul>", re.IGNORECASE | re.DOTALL)
+_PL_LI_RE = re.compile(r"<li[^>]*>(.*?)</li>", re.IGNORECASE | re.DOTALL)
+_PL_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_tags(value: str) -> str:
+    return _PL_TAG_RE.sub("", value).strip()
+
+
+def parse_paragraph_list_html(value: Any) -> tuple[Optional[str], Optional[List[str]]]:
+    """
+    Parse an HTML-ish string into (paragraph_text, list_items).
+
+    Intended for the reversible representation produced by `format_paragraph_list_html`,
+    but tolerant of legacy/plain-text values.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None, None
+
+    text = value.strip()
+    items = [_strip_tags(item) for item in _PL_LI_RE.findall(text)]
+    items = [item for item in items if item]
+
+    paragraph_html = _PL_UL_RE.sub("", text).strip()
+    paragraph = _strip_tags(paragraph_html)
+    paragraph_value = paragraph or None
+    items_value = items or None
+    return paragraph_value, items_value
+
+
+def format_paragraph_list_html(paragraph: Any, items: Any) -> str:
+    """
+    Format (paragraph, list_items) into a stable HTML-ish string:
+      <p>{paragraph}</p><ul><li>{item}</li>...</ul>
+    """
+    paragraph_value = paragraph.strip() if isinstance(paragraph, str) else ""
+
+    list_items: List[str] = []
+    if items is None:
+        list_items = []
+    elif isinstance(items, list):
+        for item in items:
+            if not isinstance(item, str):
+                raise ValueError("list items must be strings")
+            stripped = item.strip()
+            if stripped:
+                list_items.append(stripped)
+    else:
+        raise ValueError("list items must be a list of strings or null")
+
+    parts: List[str] = []
+    if paragraph_value:
+        # Preserve raw HTML if the caller provides it.
+        if "<" in paragraph_value and ">" in paragraph_value:
+            parts.append(paragraph_value)
+        else:
+            parts.append(f"<p>{paragraph_value}</p>")
+    if list_items:
+        li = "".join(f"<li>{item}</li>" for item in list_items)
+        parts.append(f"<ul>{li}</ul>")
+    return "".join(parts)
+
+
+@dataclass(frozen=True)
+class ParagraphListAdapter:
+    """
+    Adapter that exposes (paragraph_key, listitems_key) while storing `text_key`.
+
+    - Input: accepts either/both paragraph_key and listitems_key.
+    - Storage: writes a composed HTML-ish string to text_key.
+    - Output: parses text_key into paragraph_key/listitems_key and removes text_key.
+
+    Important update semantics:
+    - If only one of (paragraph_key, listitems_key) is updated, tool handlers must
+      fill the missing side from existing upstream `text_key` to avoid clobbering.
+    """
+
+    paragraph_key: str
+    listitems_key: str
+    text_key: str
+    include_in_model: bool = False
+
+    def apply_defaults(self, payload: Dict[str, Any]) -> None:
+        paragraph_present = self.paragraph_key in payload
+        items_present = self.listitems_key in payload
+
+        paragraph = payload.pop(self.paragraph_key, None) if paragraph_present else None
+        items = payload.pop(self.listitems_key, None) if items_present else None
+
+        # If neither was provided, just ensure the upstream text field exists.
+        if not paragraph_present and not items_present:
+            payload.setdefault(self.text_key, "")
+            return
+
+        html = format_paragraph_list_html(paragraph or "", items)
+        payload[self.text_key] = html
+
+    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        # Remove the backing field first to avoid key collisions downstream.
+        raw = payload.pop(self.text_key, None)
+        paragraph, items = parse_paragraph_list_html(raw)
+        return {
+            self.paragraph_key: paragraph,
+            self.listitems_key: items,
+        }
+
+    def build_update_ops(
+        self, payload: Dict[str, Any], target: PatchTarget
+    ) -> List[Dict[str, Any]]:
+        has_paragraph = self.paragraph_key in payload
+        has_items = self.listitems_key in payload
+        if not has_paragraph and not has_items:
+            return []
+
+        if has_paragraph ^ has_items:
+            raise ValueError(
+                f"{self.paragraph_key}/{self.listitems_key} must be updated together "
+                "(the tool fills the untouched side from existing upstream text to prevent clobbering)."
+            )
+
+        paragraph = payload.pop(self.paragraph_key)
+        items = payload.pop(self.listitems_key)
+
+        paragraph_value = "" if paragraph is None else paragraph
+        if not isinstance(paragraph_value, str):
+            raise ValueError(f"{self.paragraph_key} must be a string or null")
+
+        html = format_paragraph_list_html(paragraph_value, items)
+        path = target.field_path(self.text_key)
+        return [patch_ops.op_replace(path, html)]
+
 
 def _normalize_iso8601_loose(value: Any) -> Optional[str]:
     """

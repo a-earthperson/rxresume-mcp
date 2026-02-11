@@ -80,7 +80,8 @@ async def test_experience_item_round_trip_uses_name_not_company(
                     "location": "Remote",
                     "startDate": "2026",
                     "url": "https://tooling.example",
-                    "description": "Did testing",
+                    "summary": "Did testing",
+                    "highlights": ["H1"],
                 }
             ],
             "return_mode": "delta",
@@ -92,6 +93,7 @@ async def test_experience_item_round_trip_uses_name_not_company(
     created = resp["created"][0]
     assert created.get("name") == "Tooling Inc"
     assert "company" not in created
+    assert "description" not in created, "Backing field should not be exposed"
 
 
 @pytest.mark.asyncio

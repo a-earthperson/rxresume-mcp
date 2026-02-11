@@ -34,9 +34,10 @@ from .conftest import call_tool_json
                 "startDate": None,
                 "endDate": None,
                 "url": None,
-                "description": None,
+                "summary": None,
+                "highlights": None,
             },
-            ("location", "startDate", "endDate", "url", "description"),
+            ("location", "startDate", "endDate", "url", "summary", "highlights"),
         ),
         (
             "projects",

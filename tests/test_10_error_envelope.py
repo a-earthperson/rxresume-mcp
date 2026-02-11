@@ -62,7 +62,8 @@ async def test_patch_target_not_found_is_structured(
                     "position": None,
                     "location": None,
                     "url": None,
-                    "description": None,
+                    "summary": None,
+                    "highlights": None,
                 }
             ],
         },

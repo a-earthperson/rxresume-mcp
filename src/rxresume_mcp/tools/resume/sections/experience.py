@@ -10,6 +10,7 @@ from .section_item_tools import ensure_non_empty_string, register_section_item_t
 from .field_adapters import (
     NoopFieldAdapter,
     PeriodRangeAdapter,
+    ParagraphListAdapter,
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
 )
@@ -58,9 +59,24 @@ EXPERIENCE_FIELDS = [
         adapter=WebsiteFieldAdapter(response_key="url", server_key="website"),
     ),
     FieldSpec(
-        name="description",
+        name="summary",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="description"),
+        adapter=NoopFieldAdapter(),
+    ),
+    FieldSpec(
+        name="highlights",
+        field_type=List[str],
+        adapter=NoopFieldAdapter(),
+    ),
+    # Stored upstream as `description`, exposed as summary/highlights.
+    FieldSpec(
+        name="__description",
+        field_type=str,
+        adapter=ParagraphListAdapter(
+            paragraph_key="summary",
+            listitems_key="highlights",
+            text_key="description",
+        ),
     ),
 ]
 

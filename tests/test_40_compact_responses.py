@@ -100,7 +100,7 @@ async def test_section_item_update_can_return_ids_only(
         {
             "resume_id": sample_resume_id,
             "section": "work",
-            "items": [{"id": None, "name": "CompactUpdate", "description": "Seed"}],
+            "items": [{"id": None, "name": "CompactUpdate", "summary": "Seed"}],
             "return_mode": "delta",
         },
     )
@@ -117,7 +117,7 @@ async def test_section_item_update_can_return_ids_only(
         {
             "resume_id": sample_resume_id,
             "section": "work",
-            "items": [{"id": item_id, "description": "Updated"}],
+            "items": [{"id": item_id, "summary": "Updated"}],
             "return_mode": "none",
         },
     )
@@ -141,7 +141,7 @@ async def test_section_item_delete_can_return_ids_only(
         {
             "resume_id": sample_resume_id,
             "section": "work",
-            "items": [{"id": None, "name": "CompactDelete", "description": "Seed"}],
+            "items": [{"id": None, "name": "CompactDelete", "summary": "Seed"}],
             "return_mode": "delta",
         },
     )

@@ -68,7 +68,14 @@ async def test_section_item_update_allows_clear_only_without_items(
         {
             "resume_id": sample_resume_id,
             "section": "work",
-            "items": [{"id": None, "name": "ClearOnly", "description": "Will clear"}],
+            "items": [
+                {
+                    "id": None,
+                    "name": "ClearOnly",
+                    "summary": "Will clear",
+                    "highlights": ["H1"],
+                }
+            ],
             "return_mode": "delta",
         },
     )
@@ -86,7 +93,7 @@ async def test_section_item_update_allows_clear_only_without_items(
             "resume_id": sample_resume_id,
             "section": "work",
             "items": None,
-            "clear": {item_id: ["description"]},
+            "clear": {item_id: ["summary"]},
             "return_mode": "delta",
         },
     )
@@ -104,5 +111,5 @@ async def test_section_item_update_allows_clear_only_without_items(
         updated_item is not None
     ), f"Expected updated item id {item_id} in: {updated!r}"
     assert (
-        updated_item.get("description") is None
-    ), f"Expected description cleared to None, got: {updated_item.get('description')!r}"
+        updated_item.get("summary") is None
+    ), f"Expected summary cleared to None, got: {updated_item.get('summary')!r}"

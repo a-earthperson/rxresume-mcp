@@ -13,6 +13,7 @@ from rxresume_mcp.client import RxResumeClient
 
 from ...core import execute_rxresume_operation
 from .field_adapters import parse_period_bounds
+from .field_adapters import ParagraphListAdapter, parse_paragraph_list_html
 from .normalize import _normalize_url_fields
 from .sections import (
     _ensure_item_id,
@@ -329,6 +330,54 @@ def _fill_period_bounds_from_existing(
         payload[_PERIOD_BOUND_KEYS[1]] = end_existing
 
 
+def _fill_paragraph_list_from_existing(
+    payload: Dict[str, Any],
+    *,
+    existing_item: Optional[Dict[str, Any]],
+    spec: ItemSpec,
+    section_label: str = "item",
+) -> None:
+    """
+    Preserve the untouched side of (paragraph_key, listitems_key) updates.
+
+    ParagraphListAdapter requires both keys to produce an updated backing text field.
+    Tool handlers allow updating just one key; when that happens, we fill the missing
+    side from existing upstream state by parsing the adapter's `text_key`.
+    """
+    adapters = [a for a in spec.adapters if isinstance(a, ParagraphListAdapter)]
+    if not adapters:
+        return
+
+    for adapter in adapters:
+        pkey = adapter.paragraph_key
+        lkey = adapter.listitems_key
+        tkey = adapter.text_key
+
+        has_p = pkey in payload
+        has_l = lkey in payload
+        if not (has_p ^ has_l):
+            continue
+
+        if not existing_item:
+            raise ValueError(
+                f"{section_label} updates to {pkey}/{lkey} require an existing item to preserve the untouched side"
+            )
+
+        existing_text = existing_item.get(tkey)
+        paragraph_existing, items_existing = parse_paragraph_list_html(existing_text)
+
+        if not has_p:
+            payload[pkey] = paragraph_existing or ""
+        if not has_l:
+            payload[lkey] = items_existing or []
+
+        # Normalize explicit clears so adapters don't have to.
+        if has_p and payload.get(pkey) is None:
+            payload[pkey] = ""
+        if has_l and payload.get(lkey) is None:
+            payload[lkey] = []
+
+
 def build_update_ops_for_payload(
     spec: ItemSpec,
     *,
@@ -341,6 +390,9 @@ def build_update_ops_for_payload(
     normalized = dict(payload)
     _fill_period_bounds_from_existing(
         normalized, existing_item=existing_item, section_label=section_label
+    )
+    _fill_paragraph_list_from_existing(
+        normalized, existing_item=existing_item, spec=spec, section_label=section_label
     )
     return spec.build_update_ops(item_id, normalized)
 
@@ -562,7 +614,34 @@ def register_section_item_tools(
                         break
 
             existing_by_id: Optional[Dict[str, Dict[str, Any]]] = None
-            if needs_existing_period:
+            needs_existing_paragraph_list = False
+            paragraph_list_adapters = [
+                a for a in spec.adapters if isinstance(a, ParagraphListAdapter)
+            ]
+            if paragraph_list_adapters:
+                for model_item in model_items:
+                    dumped = model_item.model_dump(exclude_unset=True)
+                    for adapter in paragraph_list_adapters:
+                        has_p = adapter.paragraph_key in dumped
+                        has_l = adapter.listitems_key in dumped
+                        if has_p ^ has_l:
+                            needs_existing_paragraph_list = True
+                            break
+                    if needs_existing_paragraph_list:
+                        break
+            if paragraph_list_adapters and not needs_existing_paragraph_list:
+                for instruction in clear_instructions:
+                    fields = instruction.get("fields") or []
+                    for adapter in paragraph_list_adapters:
+                        has_p = adapter.paragraph_key in fields
+                        has_l = adapter.listitems_key in fields
+                        if has_p ^ has_l:
+                            needs_existing_paragraph_list = True
+                            break
+                    if needs_existing_paragraph_list:
+                        break
+
+            if needs_existing_period or needs_existing_paragraph_list:
                 resume = _require_resume_object(await client.get_resume(resume_id))
                 existing_items = extract_section_items(resume, section, label=label)
                 existing_by_id = {
