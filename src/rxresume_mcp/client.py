@@ -16,7 +16,12 @@ from deepmerge import Merger
 import httpx
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError, ValidationError
-from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import (
+    AsyncRetrying,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from . import DEFAULT_USER_AGENT
 
@@ -280,6 +285,7 @@ class RxResumeClient:
         headers = {"Accept": accept}
         if content_type:
             headers["Content-Type"] = content_type
+
         async def _send_once() -> httpx.Response:
             return await self.client.request(
                 method_upper,

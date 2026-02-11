@@ -94,9 +94,15 @@ async def test_section_item_update_allows_clear_only_without_items(
     resp = cleared_payload.get("response")
     assert isinstance(resp, dict)
     updated = resp.get("updated") or []
-    assert isinstance(updated, list) and updated, f"Expected updated list, got: {resp!r}"
-    updated_item = next((i for i in updated if isinstance(i, dict) and i.get("id") == item_id), None)
-    assert updated_item is not None, f"Expected updated item id {item_id} in: {updated!r}"
+    assert (
+        isinstance(updated, list) and updated
+    ), f"Expected updated list, got: {resp!r}"
+    updated_item = next(
+        (i for i in updated if isinstance(i, dict) and i.get("id") == item_id), None
+    )
+    assert (
+        updated_item is not None
+    ), f"Expected updated item id {item_id} in: {updated!r}"
     assert (
         updated_item.get("description") is None
     ), f"Expected description cleared to None, got: {updated_item.get('description')!r}"

@@ -47,7 +47,9 @@ async def test_doc_list_strips_isPublic_and_isLocked(
     `resume.doc.list` returns upstream summaries; we strip internal fields so callers
     never see `isPublic` / `isLocked` in any view.
     """
-    payload = await call_tool_json(mcp_session, "resume.doc.list", {"tags": [], "sort": None})
+    payload = await call_tool_json(
+        mcp_session, "resume.doc.list", {"tags": [], "sort": None}
+    )
     assert payload.get("status") == "success", payload
     resumes = payload.get("response") or []
     assert isinstance(resumes, list)

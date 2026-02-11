@@ -190,7 +190,9 @@ SECTION_FIELDS.extend(
         FieldSpec(
             name=output_key,
             field_type=List[Any],
-            adapter=SectionItemsAdapter(source_key=source_key, output_key=output_key, spec=spec),
+            adapter=SectionItemsAdapter(
+                source_key=source_key, output_key=output_key, spec=spec
+            ),
         )
         for output_key, source_key, spec in _SECTION_ITEM_SPEC_MAP
     ]

@@ -12,9 +12,19 @@ from rxresume_mcp import patch_ops
 
 from .profile import PROFILE_SPEC
 from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
-from .item_spec import FieldSpec, MappedPatchTarget, PatchTarget, build_object_model, build_spec
+from .item_spec import (
+    FieldSpec,
+    MappedPatchTarget,
+    PatchTarget,
+    build_object_model,
+    build_spec,
+)
 from .sections import _extract_section_data
-from .section_item_tools import ensure_non_empty_string, extract_section_items, register_object_tools
+from .section_item_tools import (
+    ensure_non_empty_string,
+    extract_section_items,
+    register_object_tools,
+)
 from .tool_helpers import normalize_website_for_patch
 
 
@@ -40,7 +50,9 @@ class BasicsProfilesAdapter:
         if raw is None:
             raw = []
         if not isinstance(raw, list):
-            raise ValueError("basics.profiles must be a list of objects (or null to clear)")
+            raise ValueError(
+                "basics.profiles must be a list of objects (or null to clear)"
+            )
 
         items: List[Dict[str, Any]] = []
         for entry in raw:
@@ -51,7 +63,9 @@ class BasicsProfilesAdapter:
                 entry_id = str(uuid.uuid4())
 
             network = ensure_non_empty_string(entry.get("network"), fallback=" ")
-            username = entry.get("username") if entry.get("username") is not None else ""
+            username = (
+                entry.get("username") if entry.get("username") is not None else ""
+            )
             if not isinstance(username, str):
                 raise ValueError("basics.profiles[].username must be a string or null")
 
@@ -69,9 +83,7 @@ class BasicsProfilesAdapter:
             )
 
         # Replace the entire profiles section items array (JSON Merge Patch semantics).
-        return [
-            patch_ops.op_replace(patch_ops.path_section_items(self.section), items)
-        ]
+        return [patch_ops.op_replace(patch_ops.path_section_items(self.section), items)]
 
 
 BASICS_FIELDS = [

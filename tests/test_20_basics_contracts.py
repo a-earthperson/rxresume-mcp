@@ -5,7 +5,16 @@ from mcp import ClientSession
 
 from .conftest import call_tool_json
 
-_BASICS_KEYS = ("name", "label", "email", "phone", "location", "url", "summary", "profiles")
+_BASICS_KEYS = (
+    "name",
+    "label",
+    "email",
+    "phone",
+    "location",
+    "url",
+    "summary",
+    "profiles",
+)
 
 
 def _assert_success(payload: dict, *, resume_id: str | None = None) -> dict:
@@ -43,7 +52,9 @@ def _assert_basics_shape(basics: dict) -> None:
     assert "data" not in basics
     for k in _BASICS_KEYS:
         v = basics.get(k)
-        assert v is None or isinstance(v, str) or isinstance(v, list),f"{k} must be string|list|null, got: {v!r}"
+        assert (
+            v is None or isinstance(v, str) or isinstance(v, list)
+        ), f"{k} must be string|list|null, got: {v!r}"
 
 
 def _tool_names(tools_result: object) -> set[str]:

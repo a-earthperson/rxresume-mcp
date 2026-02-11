@@ -1,7 +1,7 @@
 import pytest
 from mcp import ClientSession
 
-from .conftest import UUID_RE, call_tool_json
+from .conftest import call_tool_json
 
 
 @pytest.mark.asyncio

@@ -4,12 +4,10 @@ import pathlib
 import sys
 from pathlib import Path
 import re
-import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Optional, Tuple
 
 import httpx
-import pytest
 import pytest_asyncio
 
 from mcp import ClientSession, types

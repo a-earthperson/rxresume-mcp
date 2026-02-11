@@ -333,7 +333,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                     build_update_ops_with_spec(
                         model_item,
                         binding.spec,
-                        existing_items_by_id=existing_by_id if needs_existing_period else None,
+                        existing_items_by_id=(
+                            existing_by_id if needs_existing_period else None
+                        ),
                         section_label=binding.label,
                     )
                 )
@@ -343,7 +345,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 fields = instruction["fields"]
                 if not fields:
                     continue
-                existing_item = existing_by_id.get(item_id) if needs_existing_period else None
+                existing_item = (
+                    existing_by_id.get(item_id) if needs_existing_period else None
+                )
                 ops.extend(
                     build_update_ops_for_payload(
                         binding.spec,
@@ -355,7 +359,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 )
 
             if not ops:
-                raise ValueError("No updates provided (provide items and/or clear fields).")
+                raise ValueError(
+                    "No updates provided (provide items and/or clear fields)."
+                )
             result = await apply_section_item_patch(
                 client, resume_id, binding.section, ops, label=binding.label
             )

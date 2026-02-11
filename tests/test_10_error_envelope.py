@@ -89,7 +89,11 @@ async def test_section_create_rejects_non_list_items_is_structured(
     payload = await call_tool_json(
         mcp_session,
         "resume.section.create",
-        {"resume_id": sample_resume_id, "section": "profiles", "items": {"not": "a list"}},
+        {
+            "resume_id": sample_resume_id,
+            "section": "profiles",
+            "items": {"not": "a list"},
+        },
     )
     _assert_structured_error(
         payload, expected_http=400, expected_code="VALIDATION_ERROR"

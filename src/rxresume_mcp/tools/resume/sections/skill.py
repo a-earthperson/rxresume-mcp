@@ -39,7 +39,9 @@ SKILL_FIELDS = [
         # colliding with JSON Resume's string-valued skills[].level.
         name="rating",
         field_type=float,
-        adapter=ScalarFieldAdapter(response_key="rating", server_key="level", server_default=0),
+        adapter=ScalarFieldAdapter(
+            response_key="rating", server_key="level", server_default=0
+        ),
     ),
     FieldSpec(
         name="keywords",

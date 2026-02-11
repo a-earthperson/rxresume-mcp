@@ -8,19 +8,7 @@ from .resume import register_resume_tools
 
 from .resume.sections.generic_section_tools import register_generic_section_tools
 
-from .resume.sections.award import register_award_tools
 from .resume.sections.basics import register_basics_tools
-from .resume.sections.reference import register_reference_tools
-from .resume.sections.certification import register_certification_tools
-from .resume.sections.education import register_education_tools
-from .resume.sections.experience import register_experience_tools
-from .resume.sections.interest import register_interest_tools
-from .resume.sections.language import register_language_tools
-from .resume.sections.project import register_project_tools
-from .resume.sections.profile import register_profile_tools
-from .resume.sections.publication import register_publication_tools
-from .resume.sections.skill import register_skill_tools
-from .resume.sections.volunteer import register_volunteer_tools
 
 
 def register_tools(mcp: FastMCP) -> None:

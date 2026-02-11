@@ -600,7 +600,9 @@ def register_section_item_tools(
                 )
 
             if not ops:
-                raise ValueError("No updates provided (provide items and/or clear fields).")
+                raise ValueError(
+                    "No updates provided (provide items and/or clear fields)."
+                )
             result = await apply_section_item_patch(
                 client, resume_id, section, ops, label=label
             )
