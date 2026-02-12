@@ -192,13 +192,14 @@ def _build_basics_payload(resume: Dict[str, Any]) -> Any:
     if isinstance(summary_data, dict):
         payload["summary"] = summary_data.get("content")
     # Mirror profiles under basics for convenience/JSON Resume alignment.
+    payload["profiles"] = []
     try:
         items = extract_section_items(resume, "profiles", label="Profiles")
         reshaped = PROFILE_SPEC.reshape_items(items)
-        # Keep empty resumes "all-null" per contract: [] -> null.
-        payload["profiles"] = reshaped if reshaped else None
+        if reshaped is not None:
+            payload["profiles"] = reshaped
     except Exception:
-        # If the section is missing/malformed, leave profiles absent.
+        # If the section is missing/malformed, fall back to empty.
         pass
     return payload
 

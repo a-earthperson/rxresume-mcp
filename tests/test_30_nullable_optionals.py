@@ -153,6 +153,39 @@ async def test_create_accepts_null_for_optional_fields(
 
 
 @pytest.mark.asyncio
+async def test_work_create_preserves_null_end_date(
+    mcp_session: ClientSession, sample_resume_id: str
+):
+    payload = await call_tool_json(
+        mcp_session,
+        "resume.section.create",
+        {
+            "resume_id": sample_resume_id,
+            "section": "work",
+            "items": [
+                {
+                    "id": None,
+                    "name": "Null End Date Co",
+                    "position": "Engineer",
+                    "startDate": "Jan 2024",
+                    "endDate": None,
+                }
+            ],
+            "return_mode": "delta",
+        },
+    )
+    assert payload.get("status") == "success", payload
+    resp = payload.get("response")
+    assert isinstance(resp, dict), f"Expected delta response dict, got: {resp!r}"
+    created_items = resp.get("created") or []
+    assert isinstance(created_items, list) and created_items
+    created = created_items[0]
+    assert isinstance(created, dict)
+    assert created.get("startDate") == "Jan 2024"
+    assert created.get("endDate") is None
+
+
+@pytest.mark.asyncio
 async def test_skill_create_allows_null_level_and_preserves_null(
     mcp_session: ClientSession, sample_resume_id: str
 ):

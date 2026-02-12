@@ -243,7 +243,8 @@ def _build_section_schema(section: str) -> Dict[str, Any]:
                 "note": (
                     "Date fields ("
                     + ", ".join(date_fields)
-                    + ") accept any string or null. No format validation is performed."
+                    + ") accept any string or null. Values are trimmed and returned as provided; "
+                    "no format validation or hidden canonicalization is performed."
                     if date_fields
                     else "not applicable"
                 ),

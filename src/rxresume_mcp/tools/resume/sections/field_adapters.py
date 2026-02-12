@@ -15,10 +15,6 @@ from .tool_helpers import (
     normalize_website_payload,
 )
 
-_ISO8601_LOOSE_RE = re.compile(
-    r"^([1-2][0-9]{3}-[0-1][0-9]-[0-3][0-9]|[1-2][0-9]{3}-[0-1][0-9]|[1-2][0-9]{3})$"
-)
-
 _PL_UL_RE = re.compile(r"<ul[^>]*>.*?</ul>", re.IGNORECASE | re.DOTALL)
 _PL_LI_RE = re.compile(r"<li[^>]*>(.*?)</li>", re.IGNORECASE | re.DOTALL)
 _PL_TAG_RE = re.compile(r"<[^>]+>")
@@ -177,8 +173,7 @@ def parse_period_bounds(period: Any) -> Tuple[Optional[str], Optional[str]]:
     """
     Best-effort parse upstream `period` strings into (startDate, endDate).
 
-    Reversible for MCP-managed values produced by `format_period_bounds`, and
-    tolerant for legacy free-form values when possible.
+    Reversible for MCP-managed values produced by `format_period_bounds`.
     """
     if not isinstance(period, str):
         return None, None
@@ -186,37 +181,12 @@ def parse_period_bounds(period: Any) -> Tuple[Optional[str], Optional[str]]:
     if not value:
         return None, None
 
-    # Canonical MCP-managed form: "<start> - <end>" or "<start> - Present"
-    # (Spaces around the dash are required so we don't conflict with date hyphens.)
-    m = re.match(
-        r"^\s*(?P<start>.+?)\s+-\s+(?P<end>.+?)\s*$",
-        value,
-        flags=re.IGNORECASE,
-    )
-    if m:
-        start = _normalize_date_string(m.group("start"))
-        if not start:
-            return None, None
-        end_raw = _normalize_date_string(m.group("end"))
-        if not end_raw:
-            return None, None
-        return start, end_raw
-
-    # "Until <end>" is used when only an end date exists.
-    m = re.match(
-        r"^\s*(?:until|till|through)\s+(?P<end>.+?)\s*$",
-        value,
-        flags=re.IGNORECASE,
-    )
-    if m:
-        end = _normalize_date_string(m.group("end"))
-        if not end:
-            return None, None
-        return None, end
-
-    # Single ISO-ish token (legacy upstream values).
-    if _ISO8601_LOOSE_RE.match(value):
-        return _normalize_date_string(value), None
+    if "-" not in value:
+        return None, None
+    start_raw, end_raw = value.split("-", 1)
+    start = _normalize_date_string(start_raw)
+    end = _normalize_date_string(end_raw)
+    return start, end
 
     return None, None
 
@@ -226,20 +196,20 @@ def format_period_bounds(start_date: Optional[str], end_date: Optional[str]) -> 
     Encode (startDate, endDate) into upstream `period` string.
 
     This is the *reversible* MCP-managed representation:
-      - start+end   -> "<start> - <end>"
-      - start only  -> "<start> - Present"
-      - end only    -> "Until <end>"
-      - neither     -> ""
+      - start+end   -> "<start>-<end>"
+      - start only  -> "<start>-"
+      - end only    -> "-<end>"
+      - neither     -> "-"
     """
     start_norm = _normalize_date_string(start_date)
     end_norm = _normalize_date_string(end_date)
-    if start_norm and end_norm:
-        return f"{start_norm} - {end_norm}"
-    if start_norm and not end_norm:
-        return f"{start_norm} - Present"
-    if end_norm and not start_norm:
-        return f"Until {end_norm}"
-    return ""
+    if start_norm is None and end_norm is None:
+        return "-"
+    if start_norm is None:
+        return f"-{end_norm}"
+    if end_norm is None:
+        return f"{start_norm}-"
+    return f"{start_norm}-{end_norm}"
 
 
 @dataclass(frozen=True)

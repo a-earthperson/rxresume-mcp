@@ -127,6 +127,35 @@ def _strip_resume_view_fields(payload: Any) -> Any:
     return payload
 
 
+def _normalize_resume_ids(payload: Any) -> Any:
+    """Normalize resume identifiers to use resume_id keys."""
+
+    def _rename_id(value: Dict[str, Any]) -> Dict[str, Any]:
+        if "resume_id" in value or "id" not in value:
+            return value
+        renamed = dict(value)
+        renamed["resume_id"] = renamed.pop("id")
+        return renamed
+
+    if isinstance(payload, list):
+        return [
+            _rename_id(item) if isinstance(item, dict) else item for item in payload
+        ]
+    if isinstance(payload, dict):
+        normalized = _rename_id(payload)
+        for key in ("data", "items", "resumes"):
+            value = normalized.get(key)
+            if isinstance(value, list):
+                normalized = dict(normalized)
+                normalized[key] = [
+                    _rename_id(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
+                break
+        return normalized
+    return payload
+
+
 @dataclass(frozen=True)
 class BasicsSectionAdapter:
     """Adapter for composing basics into resume sections."""
@@ -332,7 +361,7 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.list_resumes(tags=tags, sort=sort)
-            return _strip_resume_view_fields(_strip_slug(result))
+            return _normalize_resume_ids(_strip_resume_view_fields(_strip_slug(result)))
 
         return await execute_rxresume_operation(
             operation_name="resume.list",
@@ -347,7 +376,9 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.get_resume(resume_id=resume_id)
-            return _strip_resume_view_fields(_strip_slug(_reshape_resume(result)))
+            return _normalize_resume_ids(
+                _strip_resume_view_fields(_strip_slug(_reshape_resume(result)))
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"resume.get: {resume_id}",

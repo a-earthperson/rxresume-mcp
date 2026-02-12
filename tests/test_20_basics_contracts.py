@@ -91,8 +91,9 @@ async def test_basics_get_is_compact_and_canonical(
     )
     basics = _assert_success(payload, resume_id=empty_resume_id)
     _assert_basics_shape(basics)
-    # Empty resume should return all-null basics.
-    assert all(basics.get(k) is None for k in _BASICS_KEYS)
+    # Empty resume should return all-null basics (profiles may be an empty list).
+    assert all(basics.get(k) is None for k in _BASICS_KEYS if k != "profiles")
+    assert basics.get("profiles") in (None, [])
 
 
 @pytest.mark.asyncio
