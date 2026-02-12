@@ -45,12 +45,193 @@ def _resolve_section_name(raw: Any) -> str:
 def _list_targets() -> Dict[str, Any]:
     sections = sorted(_SECTION_BINDINGS.keys())
     return {
-        "targets": ["basics", *sections],
+        "targets": ["doc.update", "basics", *sections],
         "notes": [
+            "Pass target='doc.update' for resume.doc.update payload schema.",
             "Pass target='basics' for resume.basics payload schema.",
             "Pass target='<section>' for a section item schema (JSON Resume section names).",
         ],
     }
+
+
+def _build_doc_update_schema() -> Dict[str, Any]:
+    sections = sorted(_SECTION_BINDINGS.keys())
+    basics_schema = BasicsInput.model_json_schema()
+    basics_fields = sorted((basics_schema.get("properties") or {}).keys())
+
+    work_binding = _SECTION_BINDINGS.get("work")
+    work_fields = (
+        sorted(
+            (work_binding.item_model.model_json_schema().get("properties") or {}).keys()
+        )
+        if work_binding
+        else []
+    )
+    work_example = _example_item_for_section("work", work_fields)
+
+    interests_binding = _SECTION_BINDINGS.get("interests")
+    interests_fields = (
+        sorted(
+            (
+                interests_binding.item_model.model_json_schema().get("properties") or {}
+            ).keys()
+        )
+        if interests_binding
+        else []
+    )
+    interests_example = _example_item_for_section("interests", interests_fields)
+
+    result: Dict[str, Any] = {
+        "kind": "doc_update",
+        "target": "doc.update",
+        "payload": {
+            "shape": {
+                "name": "string (optional)",
+                "tags": "string[] (optional)",
+                "basics": "object (optional; same shape as resume.basics.update payload)",
+                "basics_clear_fields": "string|string[] (optional)",
+                "sections": [
+                    {
+                        "op": "create|update|delete",
+                        "section": f"one of: {', '.join(sections)}",
+                        "items": "list of item objects (create/update)",
+                        "item_ids": "list of ids (delete)",
+                        "clear": "clear instructions (update)",
+                    }
+                ],
+            },
+            "basics": {"jsonSchema": basics_schema, "fields": basics_fields},
+        },
+        "constraints": {
+            "required": "At least one of name, tags, basics, basics_clear_fields, sections",
+            "basics": {
+                "omittedFields": "unchanged",
+                "nullOrEmpty": "clears field (writes schema-default placeholders)",
+            },
+            "sections": {
+                "operations": ["create", "update", "delete"],
+                "create": {
+                    "itemsShape": "items must be a non-empty list of objects",
+                    "id": "item.id must be omitted or null on create",
+                },
+                "update": {
+                    "id": "item.id is required",
+                    "noOp": "items required unless clear is provided",
+                    "clear": "clear supports {<id>: [fields]} or [{id, fields}]",
+                    "partialFields": (
+                        "When updating startDate/endDate or summary/highlights "
+                        "individually, the tool preserves the untouched side from "
+                        "existing upstream data."
+                    ),
+                },
+                "delete": {"item_ids": "item_ids must be a non-empty list of strings"},
+            },
+            "responses": {
+                "metaOnly": "returns {resume_id, name?, tags?} (no applied_ops)",
+                "withPatch": (
+                    "returns patch summary {resume_id, applied_ops, changed_paths, created_ids} "
+                    "and includes name/tags if provided"
+                ),
+                "notes": [
+                    "Metadata updates use PUT; patch updates use PATCH (non-atomic).",
+                    "Patch ops are applied in the order provided.",
+                ],
+            },
+        },
+        "operations": {
+            "update": {
+                "tool": "resume.doc.update",
+                "args": {
+                    "resume_id": "<uuid>",
+                    "payload": {
+                        "name": "Example Resume",
+                        "tags": ["tag1"],
+                        "basics": {"name": "Ada Lovelace"},
+                        "sections": [
+                            {
+                                "op": "create",
+                                "section": "interests",
+                                "items": [interests_example],
+                            }
+                        ],
+                    },
+                },
+            }
+        },
+        "examples": {
+            "metaOnly": {
+                "resume_id": "<uuid>",
+                "payload": {"name": "Updated Name", "tags": ["updated"]},
+            },
+            "basicsOnly": {
+                "resume_id": "<uuid>",
+                "payload": {"basics": {"name": "Ada Lovelace"}},
+            },
+            "basicsClearOnly": {
+                "resume_id": "<uuid>",
+                "payload": {"basics_clear_fields": ["summary"]},
+            },
+            "sectionCreate": {
+                "resume_id": "<uuid>",
+                "payload": {
+                    "sections": [
+                        {
+                            "op": "create",
+                            "section": "interests",
+                            "items": [interests_example],
+                        }
+                    ]
+                },
+            },
+            "sectionUpdate": {
+                "resume_id": "<uuid>",
+                "payload": {
+                    "sections": [
+                        {
+                            "op": "update",
+                            "section": "work",
+                            "items": [
+                                {
+                                    "id": "<item-id>",
+                                    **{
+                                        k: v
+                                        for k, v in work_example.items()
+                                        if k != "id"
+                                    },
+                                }
+                            ],
+                        }
+                    ]
+                },
+            },
+            "sectionClear": {
+                "resume_id": "<uuid>",
+                "payload": {
+                    "sections": [
+                        {
+                            "op": "update",
+                            "section": "work",
+                            "clear": {"<item-id>": ["summary"]},
+                        }
+                    ]
+                },
+            },
+            "sectionDelete": {
+                "resume_id": "<uuid>",
+                "payload": {
+                    "sections": [
+                        {
+                            "op": "delete",
+                            "section": "work",
+                            "item_ids": ["<item-id>"],
+                        }
+                    ]
+                },
+            },
+        },
+    }
+    result["schemaVersion"] = _schema_version(result)
+    return result
 
 
 def _build_basics_schema() -> Dict[str, Any]:
@@ -356,8 +537,8 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
     @mcp.tool(
         name="resume.schema.get",
         description=(
-            "Get MCP schema docs for basics or a section, including fields, examples, "
-            "and usage constraints."
+            "Get MCP schema docs for doc.update, basics, or a section, including fields, "
+            "examples, and usage constraints."
         ),
     )
     async def get_schema(
@@ -365,7 +546,7 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
         target: Any = Field(
             default=None,
             description=(
-                "Schema target. Use 'basics' or a section name "
+                "Schema target. Use 'doc.update', 'basics', or a section name "
                 f"({', '.join(sorted(_SECTION_BINDINGS.keys()))}). "
                 "If omitted, returns an index of targets."
             ),
@@ -377,11 +558,17 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
                 indexed["schemaVersion"] = _schema_version(indexed)
                 return indexed
 
+            target_raw = target.strip().lower() if isinstance(target, str) else None
+            if target_raw in {"doc.update", "doc_update", "doc"}:
+                return _build_doc_update_schema()
+
             resolved = _resolve_section_name(target)
             if resolved == "basics":
                 return _build_basics_schema()
             if resolved not in _SECTION_BINDINGS:
-                allowed = ", ".join(["basics", *sorted(_SECTION_BINDINGS.keys())])
+                allowed = ", ".join(
+                    ["doc.update", "basics", *sorted(_SECTION_BINDINGS.keys())]
+                )
                 raise ValueError(
                     f"Unknown target: {target!r}. Expected one of: {allowed}."
                 )

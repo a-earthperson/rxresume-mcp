@@ -37,7 +37,17 @@ from .sections.language import LANGUAGE_SPEC
 from .sections.project import PROJECT_SPEC
 from .sections.publication import PUBLICATION_SPEC
 from .sections.reference import REFERENCE_SPEC
-from .sections.section_item_tools import extract_section_items
+from .sections.generic_section_tools import _resolve_section
+from .sections.section_item_tools import (
+    build_update_ops_for_payload,
+    build_update_ops_with_spec,
+    coerce_clear_fields,
+    coerce_clear_instructions,
+    coerce_item_ids,
+    coerce_model_items,
+    extract_section_items,
+    prepare_item_with_spec,
+)
 from .sections.sections import _require_resume_object, summarize_section_items
 from .sections.skill import SKILL_SPEC
 from .sections.volunteer import VOLUNTEER_SPEC
@@ -429,13 +439,16 @@ RESUME_UPDATE_SPEC = build_spec("resume", RESUME_UPDATE_FIELDS)
 RESUME_UPDATE_TARGET = MappedPatchTarget(default_builder=_resume_root_path)
 
 
-class ResumeMetaUpdateInput(BaseModel):
-    """Document-level metadata update (intentionally limited)."""
+class ResumeDocUpdateInput(BaseModel):
+    """Document-level update (metadata plus patch inputs)."""
 
     model_config = {"extra": "forbid"}
 
     name: Optional[str] = None
     tags: Optional[List[str]] = None
+    basics: Optional[Dict[str, Any]] = None
+    basics_clear_fields: Optional[Any] = None
+    sections: Optional[List[Dict[str, Any]]] = None
 
 
 def register_resume_doc_tools(mcp: FastMCP) -> None:
@@ -499,15 +512,22 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
             ctx=ctx,
         )
 
-    @mcp.tool(name="resume.doc.update", description="Update resume name and/or tags")
+    @mcp.tool(
+        name="resume.doc.update",
+        description="Update resume metadata and/or batch patch basics/sections",
+    )
     async def update_resume(
         ctx: Context,
         resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
         payload: Any = Field(
             default=None,
             description=(
-                "Object with optional fields: {name?: string, tags?: string[]}. "
-                "At least one of name or tags must be provided."
+                "Object with optional fields: {name?: string, tags?: string[], basics?: object, "
+                "basics_clear_fields?: string|string[], sections?: object[]}. "
+                "At least one field is required. "
+                "basics uses resume.basics.update payload; basics_clear_fields matches "
+                "resume.basics.update clear_fields. sections entries are "
+                "{op: 'create'|'update'|'delete', section: <name>, items?, item_ids?, clear?}."
             ),
         ),
     ) -> Dict[str, Any]:
@@ -518,25 +538,200 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
                 raise ValueError("payload is required")
             if not isinstance(payload, dict):
                 raise ValueError("payload must be an object")
-            normalized = ResumeMetaUpdateInput.model_validate(payload)
-            if normalized.name is None and normalized.tags is None:
-                raise ValueError("payload must include at least one of: name, tags")
+            normalized = ResumeDocUpdateInput.model_validate(payload)
 
-            updated = await client.update_resume(
-                resume_id=resume_id,
-                name=normalized.name,
-                tags=normalized.tags,
+            has_meta = normalized.name is not None or normalized.tags is not None
+            basics_clear = coerce_clear_fields(
+                normalized.basics_clear_fields, label="basics_clear_fields"
             )
-            # Keep responses compact: return only updated metadata if available.
-            if isinstance(updated, dict):
-                return _strip_resume_view_fields(
-                    {
-                        "resume_id": resume_id,
+            section_ops = list(normalized.sections or [])
+            if (
+                not has_meta
+                and normalized.basics is None
+                and not basics_clear
+                and not section_ops
+            ):
+                raise ValueError(
+                    "payload must include at least one of: name, tags, basics, basics_clear_fields, sections"
+                )
+
+            ops: List[Dict[str, Any]] = []
+            created_ids: List[str] = []
+
+            if normalized.basics is not None or basics_clear:
+                if normalized.basics is not None:
+                    if not isinstance(normalized.basics, dict):
+                        raise ValueError("basics must be an object")
+                    basics_input = BasicsInput.model_validate(normalized.basics)
+                    payload_dict = basics_input.model_dump(exclude_unset=True)
+                else:
+                    payload_dict = {}
+                for field_name in basics_clear:
+                    payload_dict.setdefault(field_name, None)
+                ops.extend(BASICS_SPEC.build_update_ops(payload_dict, BASICS_TARGET))
+                # Keep internal customFields stable (canonical schema does not surface it).
+                ops.append(
+                    patch_ops.op_replace(
+                        patch_ops.path_basics_field("customFields"), []
+                    )
+                )
+
+            parsed_sections: List[Dict[str, Any]] = []
+            needs_existing = False
+            for entry in section_ops:
+                if not isinstance(entry, dict):
+                    raise ValueError("sections entries must be objects")
+                op_value = entry.get("op")
+                if not isinstance(op_value, str) or not op_value.strip():
+                    raise ValueError("sections.op must be a non-empty string")
+                op_name = op_value.strip().lower()
+                binding = _resolve_section(entry.get("section"))
+                parsed_sections.append(
+                    {"op": op_name, "binding": binding, "entry": entry}
+                )
+                if op_name == "update":
+                    needs_existing = True
+
+            existing_by_section: Dict[str, Dict[str, Dict[str, Any]]] = {}
+            if needs_existing:
+                resume = _require_resume_object(await client.get_resume(resume_id))
+                for parsed in parsed_sections:
+                    if parsed["op"] != "update":
+                        continue
+                    binding = parsed["binding"]
+                    section_name = binding.section
+                    if section_name in existing_by_section:
+                        continue
+                    existing_items = extract_section_items(
+                        resume, section_name, label=binding.label
+                    )
+                    existing_by_section[section_name] = {
+                        item.get("id"): item
+                        for item in existing_items
+                        if isinstance(item, dict) and isinstance(item.get("id"), str)
+                    }
+
+            for parsed in parsed_sections:
+                op_name = parsed["op"]
+                binding = parsed["binding"]
+                entry = parsed["entry"]
+
+                if op_name == "create":
+                    items = entry.get("items")
+                    if items is None:
+                        raise ValueError("sections.create requires items")
+                    for model_item in coerce_model_items(
+                        items,
+                        binding.item_model,
+                        label=f"{binding.label} items",
+                    ):
+                        item_payload = prepare_item_with_spec(
+                            model_item, created_ids, binding.spec
+                        )
+                        ops.append(
+                            patch_ops.op_add(
+                                patch_ops.path_section_items_append(binding.section),
+                                item_payload,
+                            )
+                        )
+                elif op_name == "update":
+                    items = entry.get("items")
+                    clear_instructions = coerce_clear_instructions(entry.get("clear"))
+                    if items is None or (isinstance(items, list) and not items):
+                        if not clear_instructions:
+                            raise ValueError(
+                                "sections.update requires items or clear instructions"
+                            )
+                        model_items: List[Any] = []
+                    else:
+                        model_items = coerce_model_items(
+                            items,
+                            binding.item_model,
+                            label=f"{binding.label} items",
+                        )
+
+                    entry_ops: List[Dict[str, Any]] = []
+                    existing_by_id = existing_by_section.get(binding.section) or {}
+                    for model_item in model_items:
+                        entry_ops.extend(
+                            build_update_ops_with_spec(
+                                model_item,
+                                binding.spec,
+                                existing_items_by_id=existing_by_id,
+                                section_label=binding.label,
+                            )
+                        )
+                    for instruction in clear_instructions:
+                        item_id = instruction["id"]
+                        fields = instruction["fields"]
+                        if not fields:
+                            continue
+                        existing_item = existing_by_id.get(item_id)
+                        entry_ops.extend(
+                            build_update_ops_for_payload(
+                                binding.spec,
+                                item_id=item_id,
+                                payload={field: None for field in fields},
+                                existing_item=existing_item,
+                                section_label=binding.label,
+                            )
+                        )
+                    if not entry_ops:
+                        raise ValueError(
+                            "No updates provided (provide items and/or clear fields)."
+                        )
+                    ops.extend(entry_ops)
+                elif op_name == "delete":
+                    item_ids = entry.get("item_ids")
+                    if item_ids is None:
+                        raise ValueError("sections.delete requires item_ids")
+                    ids = coerce_item_ids(item_ids)
+                    for item_id in ids:
+                        ops.append(
+                            patch_ops.op_remove(
+                                patch_ops.path_section_item(binding.section, item_id)
+                            )
+                        )
+                else:
+                    raise ValueError(
+                        "sections.op must be one of: create, update, delete"
+                    )
+
+            validated_ops = patch_ops.validate_patch_ops(ops) if ops else []
+
+            meta_view: Dict[str, Any] = {}
+            if has_meta:
+                updated = await client.update_resume(
+                    resume_id=resume_id,
+                    name=normalized.name,
+                    tags=normalized.tags,
+                )
+                # Keep responses compact: return only updated metadata if available.
+                if isinstance(updated, dict):
+                    meta_view = {
                         "name": updated.get("name"),
                         "tags": updated.get("tags"),
                     }
-                )
-            return {"resume_id": resume_id}
+                else:
+                    meta_view = {"name": normalized.name, "tags": normalized.tags}
+
+            if not validated_ops:
+                if meta_view:
+                    return _strip_resume_view_fields(
+                        {"resume_id": resume_id, **meta_view}
+                    )
+                return {"resume_id": resume_id}
+
+            await client.patch_resume(resume_id, patch_ops=validated_ops)
+            extra = meta_view or None
+            return _build_summary(
+                resume_id,
+                ops=validated_ops,
+                created_ids=created_ids,
+                include_result=False,
+                result=None,
+                extra=extra,
+            )
 
         return await execute_rxresume_operation(
             operation_name=f"resume.update: {resume_id}",

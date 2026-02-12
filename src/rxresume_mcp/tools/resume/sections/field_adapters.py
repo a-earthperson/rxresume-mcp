@@ -18,6 +18,7 @@ from .tool_helpers import (
 _PL_UL_RE = re.compile(r"<ul[^>]*>.*?</ul>", re.IGNORECASE | re.DOTALL)
 _PL_LI_RE = re.compile(r"<li[^>]*>(.*?)</li>", re.IGNORECASE | re.DOTALL)
 _PL_TAG_RE = re.compile(r"<[^>]+>")
+_PERIOD_OPEN_MARKER = "Present"
 
 
 def _strip_tags(value: str) -> str:
@@ -181,11 +182,16 @@ def parse_period_bounds(period: Any) -> Tuple[Optional[str], Optional[str]]:
     if not value:
         return None, None
 
-    if "-" not in value:
-        return None, None
-    start_raw, end_raw = value.split("-", 1)
-    start = _normalize_date_string(start_raw)
-    end = _normalize_date_string(end_raw)
+    if " to " not in value:
+        start = _normalize_date_string(value)
+        return start, None
+    start_raw, end_raw = value.split(" to ", 1)
+    if start_raw.strip() == _PERIOD_OPEN_MARKER:
+        start_raw = None
+    if end_raw.strip() == _PERIOD_OPEN_MARKER:
+        end_raw = None
+    start = _normalize_date_string(start_raw) if start_raw is not None else None
+    end = _normalize_date_string(end_raw) if end_raw is not None else None
     return start, end
 
     return None, None
@@ -196,20 +202,20 @@ def format_period_bounds(start_date: Optional[str], end_date: Optional[str]) -> 
     Encode (startDate, endDate) into upstream `period` string.
 
     This is the *reversible* MCP-managed representation:
-      - start+end   -> "<start>-<end>"
-      - start only  -> "<start>-"
-      - end only    -> "-<end>"
-      - neither     -> "-"
+      - start+end   -> "<start> to <end>"
+      - start only  -> "<start> to [open]"
+      - end only    -> "[open] to <end>"
+      - neither     -> ""
     """
     start_norm = _normalize_date_string(start_date)
     end_norm = _normalize_date_string(end_date)
     if start_norm is None and end_norm is None:
-        return "-"
+        return ""
     if start_norm is None:
-        return f"-{end_norm}"
+        return f"{_PERIOD_OPEN_MARKER} to {end_norm}"
     if end_norm is None:
-        return f"{start_norm}-"
-    return f"{start_norm}-{end_norm}"
+        return f"{start_norm} to {_PERIOD_OPEN_MARKER}"
+    return f"{start_norm} to {end_norm}"
 
 
 @dataclass(frozen=True)
