@@ -11,7 +11,7 @@ async def test_basics_update_none_clears_field(
     # set summary (stored as data.summary.content in RxResume)
     create_payload = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": sample_resume_id,
             "payload": {
@@ -31,7 +31,7 @@ async def test_basics_update_none_clears_field(
     # Desired: description=None means clear field (not "no-op").
     update_payload = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": sample_resume_id,
             "payload": {

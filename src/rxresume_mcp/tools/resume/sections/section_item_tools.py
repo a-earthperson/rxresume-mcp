@@ -250,7 +250,7 @@ def shape_mutation_result(
     Shape mutation responses to avoid returning O(N) lists when not needed.
 
     - all:   return the full (current) items list (back-compat).
-    - delta: return only created/updated items and deleted ids.
+    - delta: return created/updated items plus id lists for all mutations.
     - none:  return ids only (no items payloads).
     """
     mode = coerce_return_mode(return_mode)
@@ -264,7 +264,14 @@ def shape_mutation_result(
     # delta
     created_items = _select_items_by_ids(all_items, set(created))
     updated_items = _select_items_by_ids(all_items, set(updated))
-    return {"created": created_items, "updated": updated_items, "deleted": deleted}
+    return {
+        "created": created_items,
+        "updated": updated_items,
+        "deleted": deleted,
+        "created_ids": created,
+        "updated_ids": updated,
+        "deleted_ids": deleted,
+    }
 
 
 def prepare_item_with_spec(
@@ -462,7 +469,11 @@ def register_section_item_tools(
         ctx: Context,
         resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
         items: Any = Field(
-            default=None, description=f"{noun.title()} item or list of items to add."
+            default=None,
+            description=(
+                f"{noun.title()} item object or list of item objects to add. "
+                "Each item must omit id (or set id=null)."
+            ),
         ),
         return_mode: Any = Field(
             default="delta",
@@ -504,7 +515,7 @@ def register_section_item_tools(
         name=f"{tool_prefix}.item.create",
         description=(
             f"Add one or more {noun} items. "
-            "All fields are optional; hidden is forced to false."
+            "All fields are optional; hidden is forced to false; item.id must be omitted on create."
         ),
     )(_create)
 
@@ -512,7 +523,8 @@ def register_section_item_tools(
         ctx: Context,
         resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
         item_ids: Any = Field(
-            default=None, description="Item id or list of item ids to remove."
+            default=None,
+            description="Item id or list of item ids to remove (string or list of strings).",
         ),
         return_mode: Any = Field(
             default="all",
@@ -556,7 +568,11 @@ def register_section_item_tools(
         ctx: Context,
         resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
         items: Any = Field(
-            default=None, description=f"{noun.title()} item or list of items to update."
+            default=None,
+            description=(
+                f"{noun.title()} item object or list of item objects to update. "
+                "Each item must include id. Omit items only when using clear."
+            ),
         ),
         clear: Any = Field(
             default=None,
@@ -722,8 +738,9 @@ def register_object_tools(
     extra_update_ops: Optional[Callable[[Dict[str, Any]], List[Dict[str, Any]]]] = None,
     reset_payload: Optional[Any] = None,
     include_delete: bool = True,
+    patch_tool_name: str = "patch",
 ) -> None:
-    """Register standard get/patch/delete tools for an object."""
+    """Register standard get/update/delete tools for an object."""
 
     async def _get(
         ctx: Context,
@@ -783,15 +800,18 @@ def register_object_tools(
             return spec.reshape(build_payload(resume))
 
         return await execute_rxresume_operation(
-            operation_name=f"patch {name}: {resume_id}",
+            operation_name=f"{patch_tool_name} {name}: {resume_id}",
             operation_func=_operation,
             ctx=ctx,
             resume_id=resume_id if isinstance(resume_id, str) and resume_id else None,
         )
 
     mcp.tool(
-        name=f"{tool_prefix}.patch",
-        description=f"Patch resume {name} fields (merge semantics). All fields are optional.",
+        name=f"{tool_prefix}.{patch_tool_name}",
+        description=(
+            f"{'Patch' if patch_tool_name == 'patch' else 'Update'} resume {name} fields. "
+            "Provide payload fields to set and/or clear_fields to clear."
+        ),
     )(_patch)
 
     if include_delete:

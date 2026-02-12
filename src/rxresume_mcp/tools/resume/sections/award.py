@@ -12,6 +12,7 @@ from .section_item_tools import (
 from .field_adapters import (
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
+    normalize_date_input,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
@@ -29,7 +30,9 @@ AWARD_FIELDS = [
     FieldSpec(
         name="date",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="date"),
+        adapter=ScalarFieldAdapter(
+            response_key="date", input_transform=normalize_date_input
+        ),
     ),
     FieldSpec(
         name="summary",

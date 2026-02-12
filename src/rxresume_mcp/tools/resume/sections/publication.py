@@ -10,6 +10,7 @@ from .section_item_tools import register_section_item_tools
 from .field_adapters import (
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
+    normalize_date_input,
 )
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
@@ -27,7 +28,11 @@ PUBLICATION_FIELDS = [
     FieldSpec(
         name="releaseDate",
         field_type=str,
-        adapter=ScalarFieldAdapter(response_key="releaseDate", server_key="date"),
+        adapter=ScalarFieldAdapter(
+            response_key="releaseDate",
+            server_key="date",
+            input_transform=normalize_date_input,
+        ),
     ),
     FieldSpec(
         name="url",

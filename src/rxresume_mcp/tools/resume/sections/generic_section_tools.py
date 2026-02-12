@@ -3,7 +3,7 @@
 These tools provide a small, uniform surface area over the existing per-section
 spec/model wiring (field adapters, URL normalization, id handling, etc).
 
-They are additive: existing `resume.section.<name>.*` tools remain available.
+Section-specific tool registrations are optional and may not be enabled.
 """
 
 from __future__ import annotations
@@ -26,7 +26,6 @@ from .field_adapters import ParagraphListAdapter
 from .interest import INTEREST_SPEC, InterestItemInput
 from .item_spec import ItemSpec
 from .language import LANGUAGE_SPEC, LanguageItemInput
-from .profile import PROFILE_SPEC, ProfileItemInput
 from .project import PROJECT_SPEC, ProjectItemInput
 from .publication import PUBLICATION_SPEC, PublicationItemInput
 from .reference import REFERENCE_SPEC, ReferenceItemInput
@@ -54,12 +53,6 @@ class _SectionBinding:
 
 
 _SECTION_BINDINGS: Dict[str, _SectionBinding] = {
-    "profiles": _SectionBinding(
-        section="profiles",
-        label="Profiles",
-        spec=PROFILE_SPEC,
-        item_model=ProfileItemInput,
-    ),
     # JSON Resume: `work` (upstream stores this under `sections.experience`)
     "work": _SectionBinding(
         section="experience",
@@ -132,7 +125,6 @@ _SECTION_BINDINGS: Dict[str, _SectionBinding] = {
 
 _SECTION_ALIASES: Dict[str, str] = {
     # Tolerate singular forms (often inferred from existing per-section tool names).
-    "profile": "profiles",
     "project": "projects",
     "skill": "skills",
     "language": "languages",
@@ -171,7 +163,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="resume.section.list",
-        description="List items for a resume section.",
+        description="List items for a resume section (section is required).",
     )
     async def _list(
         ctx: Context,
@@ -195,7 +187,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="resume.section.create",
-        description="Add one or more items to a resume section.",
+        description=(
+            "Add items to a resume section (items must be a non-empty list; "
+            "wrap a single item in a list)."
+        ),
     )
     async def _create(
         ctx: Context,
@@ -203,7 +198,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         section: Any = Field(default=None, description=_section_param_description()),
         items: Any = Field(
             default=None,
-            description="List of item objects to add (wrap single items in a list).",
+            description=(
+                "List of item objects to add (wrap a single item in a list). "
+                "Each item must omit id (or set id=null)."
+            ),
         ),
         return_mode: Any = Field(
             default="delta",
@@ -249,7 +247,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="resume.section.update",
-        description="Update one or more items in a resume section by id.",
+        description=(
+            "Update items in a resume section by id (items must be a list; "
+            "clear-only updates are allowed)."
+        ),
     )
     async def _update(
         ctx: Context,
@@ -257,7 +258,10 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         section: Any = Field(default=None, description=_section_param_description()),
         items: Any = Field(
             default=None,
-            description="List of item objects to update; each item must include id.",
+            description=(
+                "List of item objects to update; each item must include id. "
+                "Omit items only when using clear."
+            ),
         ),
         clear: Any = Field(
             default=None,
@@ -408,7 +412,9 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="resume.section.delete",
-        description="Delete one or more items from a resume section by id.",
+        description=(
+            "Delete items from a resume section by id (item_ids must be a non-empty list)."
+        ),
     )
     async def _delete(
         ctx: Context,
@@ -416,7 +422,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         section: Any = Field(default=None, description=_section_param_description()),
         item_ids: Any = Field(
             default=None,
-            description="List of item ids to remove (wrap single ids in a list).",
+            description="List of item ids to remove (wrap a single id in a list).",
         ),
         return_mode: Any = Field(
             default="delta",

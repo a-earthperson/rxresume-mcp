@@ -11,7 +11,7 @@ async def test_basics_round_trip_uses_label_and_url(
     # Desired: response schema uses the same keys it accepts label/url.
     payload = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": sample_resume_id,
             "payload": {
@@ -34,30 +34,30 @@ async def test_basics_round_trip_uses_label_and_url(
 
 
 @pytest.mark.asyncio
-async def test_profile_item_round_trip_uses_url_not_website(
+async def test_basics_profiles_round_trip_uses_url_not_website(
     mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.section.create",
+        "resume.basics.update",
         {
             "resume_id": sample_resume_id,
-            "section": "profiles",
-            "items": [
-                {
-                    "id": None,
-                    "network": "X",
-                    "username": "eva",
-                    "url": "https://x.com/eva",
-                }
-            ],
-            "return_mode": "delta",
+            "payload": {
+                "profiles": [
+                    {
+                        "network": "X",
+                        "username": "eva",
+                        "url": "https://x.com/eva",
+                    }
+                ]
+            },
         },
     )
     assert payload.get("status") == "success"
-    resp = payload["response"]
-    assert isinstance(resp, dict)
-    created = resp["created"][0]
+    basics = payload["response"]
+    profiles = basics.get("profiles")
+    assert isinstance(profiles, list)
+    created = profiles[0]
     assert created.get("url") == "https://x.com/eva"
     assert "website" not in created
 
@@ -132,7 +132,7 @@ async def test_doc_get_returns_canonical_schema(
     # Setup: write basics
     await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": sample_resume_id,
             "payload": {

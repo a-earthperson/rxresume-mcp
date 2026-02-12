@@ -78,7 +78,7 @@ async def test_missing_required_argument_errors_are_structured(
     payload = await call_tool_json(
         mcp_session,
         "resume.section.delete",
-        {"resume_id": sample_resume_id, "section": "profiles", "item_ids": None},
+        {"resume_id": sample_resume_id, "section": "interests", "item_ids": None},
     )
     _assert_structured_error(payload, expected_http=400)
 
@@ -92,9 +92,23 @@ async def test_section_create_rejects_non_list_items_is_structured(
         "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "section": "profiles",
+            "section": "interests",
             "items": {"not": "a list"},
         },
+    )
+    _assert_structured_error(
+        payload, expected_http=400, expected_code="VALIDATION_ERROR"
+    )
+
+
+@pytest.mark.asyncio
+async def test_profiles_section_is_rejected(
+    mcp_session: ClientSession, sample_resume_id: str
+):
+    payload = await call_tool_json(
+        mcp_session,
+        "resume.section.list",
+        {"resume_id": sample_resume_id, "section": "profiles"},
     )
     _assert_structured_error(
         payload, expected_http=400, expected_code="VALIDATION_ERROR"

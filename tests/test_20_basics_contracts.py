@@ -68,17 +68,17 @@ def _tool_names(tools_result: object) -> set[str]:
 
 
 @pytest.mark.asyncio
-async def test_basics_api_surface_is_get_patch(
+async def test_basics_api_surface_is_get_update(
     mcp_session: ClientSession,
 ):
     tools = await mcp_session.list_tools()
     names = _tool_names(tools)
 
-    # Current surface (documented regression notes) uses patch, not create/update.
+    # Current surface uses get and update (no create/patch).
     assert "resume.basics.get" in names
-    assert "resume.basics.patch" in names
+    assert "resume.basics.update" in names
     assert "resume.basics.create" not in names
-    assert "resume.basics.update" not in names
+    assert "resume.basics.patch" not in names
 
 
 @pytest.mark.asyncio
@@ -96,14 +96,14 @@ async def test_basics_get_is_compact_and_canonical(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_partial_update_preserves_omitted_fields(
+async def test_basics_update_partial_update_preserves_omitted_fields(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     # "Stupid model" pattern: update just one field without replaying the whole object.
     first = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"name": "A"}},
     )
     basics1 = _assert_success(first, resume_id=empty_resume_id)
@@ -112,7 +112,7 @@ async def test_basics_patch_partial_update_preserves_omitted_fields(
 
     second = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"label": "Engineer"}},
     )
     basics2 = _assert_success(second, resume_id=empty_resume_id)
@@ -122,13 +122,120 @@ async def test_basics_patch_partial_update_preserves_omitted_fields(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_null_and_empty_string_clear_fields(
+async def test_basics_update_profiles_is_partial(
+    mcp_session: ClientSession,
+    empty_resume_id: str,
+):
+    seeded = await call_tool_json(
+        mcp_session,
+        "resume.basics.update",
+        {
+            "resume_id": empty_resume_id,
+            "payload": {
+                "name": "Eva",
+                "profiles": [
+                    {
+                        "network": "GitHub",
+                        "username": "eva",
+                        "url": "https://github.com/eva",
+                    }
+                ],
+            },
+        },
+    )
+    basics1 = _assert_success(seeded, resume_id=empty_resume_id)
+    assert basics1["name"] == "Eva"
+    assert isinstance(basics1["profiles"], list)
+    assert basics1["profiles"][0].get("network") == "GitHub"
+
+    updated = await call_tool_json(
+        mcp_session,
+        "resume.basics.update",
+        {
+            "resume_id": empty_resume_id,
+            "payload": {
+                "profiles": [
+                    {
+                        "network": "GitLab",
+                        "username": "eva2",
+                        "url": "https://gitlab.com/eva2",
+                    }
+                ]
+            },
+        },
+    )
+    basics2 = _assert_success(updated, resume_id=empty_resume_id)
+    assert basics2["name"] == "Eva", "Omitted basics fields must be preserved."
+    assert isinstance(basics2["profiles"], list)
+    assert basics2["profiles"][0].get("network") == "GitLab"
+
+
+@pytest.mark.asyncio
+async def test_basics_update_profiles_item_is_partial(
+    mcp_session: ClientSession,
+    empty_resume_id: str,
+):
+    seeded = await call_tool_json(
+        mcp_session,
+        "resume.basics.update",
+        {
+            "resume_id": empty_resume_id,
+            "payload": {
+                "profiles": [
+                    {
+                        "network": "GitHub",
+                        "username": "eva",
+                        "url": "https://github.com/eva",
+                    },
+                    {
+                        "network": "LinkedIn",
+                        "username": "eva-li",
+                        "url": "https://linkedin.com/in/eva",
+                    },
+                ]
+            },
+        },
+    )
+    basics1 = _assert_success(seeded, resume_id=empty_resume_id)
+    profiles1 = basics1.get("profiles")
+    assert isinstance(profiles1, list) and len(profiles1) == 2
+    by_id = {p.get("id"): p for p in profiles1 if isinstance(p, dict)}
+    assert len(by_id) == 2
+    github = next(p for p in profiles1 if p.get("network") == "GitHub")
+    linkedin = next(p for p in profiles1 if p.get("network") == "LinkedIn")
+
+    updated = await call_tool_json(
+        mcp_session,
+        "resume.basics.update",
+        {
+            "resume_id": empty_resume_id,
+            "payload": {
+                "profiles": [
+                    {
+                        "id": github.get("id"),
+                        "username": "eva-updated",
+                    }
+                ]
+            },
+        },
+    )
+    basics2 = _assert_success(updated, resume_id=empty_resume_id)
+    profiles2 = basics2.get("profiles")
+    assert isinstance(profiles2, list) and len(profiles2) == 2
+    by_id2 = {p.get("id"): p for p in profiles2 if isinstance(p, dict)}
+    assert by_id2[github["id"]]["username"] == "eva-updated"
+    assert by_id2[github["id"]]["url"] == github.get("url")
+    assert by_id2[linkedin["id"]] == linkedin
+
+
+@pytest.mark.asyncio
+async def test_basics_update_null_and_empty_string_clear_fields(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": empty_resume_id,
             "payload": {"email": "a@example.com", "phone": "555-555"},
@@ -137,7 +244,7 @@ async def test_basics_patch_null_and_empty_string_clear_fields(
 
     cleared_null = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"email": None}},
     )
     basics = _assert_success(cleared_null, resume_id=empty_resume_id)
@@ -145,7 +252,7 @@ async def test_basics_patch_null_and_empty_string_clear_fields(
 
     cleared_empty = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"phone": ""}},
     )
     basics2 = _assert_success(cleared_empty, resume_id=empty_resume_id)
@@ -153,13 +260,13 @@ async def test_basics_patch_null_and_empty_string_clear_fields(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_clear_fields_works_without_payload(
+async def test_basics_update_clear_fields_works_without_payload(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     seeded = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"name": "Eva", "label": "Builder"}},
     )
     basics1 = _assert_success(seeded, resume_id=empty_resume_id)
@@ -167,7 +274,7 @@ async def test_basics_patch_clear_fields_works_without_payload(
 
     cleared = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": None, "clear_fields": ["label"]},
     )
     basics2 = _assert_success(cleared, resume_id=empty_resume_id)
@@ -176,19 +283,19 @@ async def test_basics_patch_clear_fields_works_without_payload(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_clear_fields_accepts_string_or_list(
+async def test_basics_update_clear_fields_accepts_string_or_list(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"summary": "Hello"}},
     )
 
     as_string = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": None, "clear_fields": "summary"},
     )
     basics1 = _assert_success(as_string, resume_id=empty_resume_id)
@@ -196,12 +303,12 @@ async def test_basics_patch_clear_fields_accepts_string_or_list(
 
     await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"summary": "Hello2"}},
     )
     as_list = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": None, "clear_fields": ["summary"]},
     )
     basics2 = _assert_success(as_list, resume_id=empty_resume_id)
@@ -209,14 +316,14 @@ async def test_basics_patch_clear_fields_accepts_string_or_list(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_url_is_normalized_with_scheme(
+async def test_basics_update_url_is_normalized_with_scheme(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     # "Stupid model" pattern: provides a bare domain.
     payload = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"url": "example.com"}},
     )
     basics = _assert_success(payload, resume_id=empty_resume_id)
@@ -225,13 +332,13 @@ async def test_basics_patch_url_is_normalized_with_scheme(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_whitespace_summary_is_preserved(
+async def test_basics_update_whitespace_summary_is_preserved(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": {"summary": " "}},
     )
     basics = _assert_success(payload, resume_id=empty_resume_id)
@@ -239,7 +346,7 @@ async def test_basics_patch_whitespace_summary_is_preserved(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_rejects_common_wrong_keys_with_actionable_errors(
+async def test_basics_update_rejects_common_wrong_keys_with_actionable_errors(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
@@ -252,7 +359,7 @@ async def test_basics_patch_rejects_common_wrong_keys_with_actionable_errors(
     ):
         payload = await call_tool_json(
             mcp_session,
-            "resume.basics.patch",
+            "resume.basics.update",
             {"resume_id": empty_resume_id, "payload": wrong_payload},
         )
         err = _assert_structured_error(
@@ -263,7 +370,7 @@ async def test_basics_patch_rejects_common_wrong_keys_with_actionable_errors(
     # Also common: payload is the wrong type entirely.
     wrong_type = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": "name=Eva"},
     )
     _assert_structured_error(
@@ -272,13 +379,13 @@ async def test_basics_patch_rejects_common_wrong_keys_with_actionable_errors(
 
 
 @pytest.mark.asyncio
-async def test_basics_patch_requires_payload_or_clear_fields(
+async def test_basics_update_requires_payload_or_clear_fields(
     mcp_session: ClientSession,
     empty_resume_id: str,
 ):
     payload = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {"resume_id": empty_resume_id, "payload": None, "clear_fields": None},
     )
     _assert_structured_error(
@@ -288,7 +395,7 @@ async def test_basics_patch_requires_payload_or_clear_fields(
     # Small-model mistake: clear_fields has the wrong type.
     bad_clear = await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": empty_resume_id,
             "payload": None,
@@ -337,7 +444,7 @@ async def test_basics_delete_resets_if_tool_is_exposed(
     # Seed something non-null, then delete should reset to all-null.
     await call_tool_json(
         mcp_session,
-        "resume.basics.patch",
+        "resume.basics.update",
         {
             "resume_id": empty_resume_id,
             "payload": {"name": "X", "label": "Y", "url": "https://example.com"},

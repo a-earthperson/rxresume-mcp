@@ -45,13 +45,12 @@ async def test_section_item_create_returns_delta_not_full_list(
         "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "section": "profiles",
+            "section": "interests",
             "items": [
                 {
                     "id": None,
-                    "network": "GitHub",
-                    "username": "abc",
-                    "url": "https://github.com/abc",
+                    "name": "Photography",
+                    "keywords": ["film"],
                 }
             ],
         },
@@ -61,6 +60,10 @@ async def test_section_item_create_returns_delta_not_full_list(
     assert isinstance(resp, dict), "Expected delta response object, not a list"
     assert "created" in resp
     assert len(resp["created"]) == 1
+    created_item = resp["created"][0]
+    created_id = created_item.get("id")
+    assert isinstance(created_id, str) and created_id
+    assert created_id in (resp.get("created_ids") or [])
 
 
 @pytest.mark.asyncio
@@ -84,6 +87,10 @@ async def test_batch_create_returns_delta_not_full_list(
     assert isinstance(resp, dict), "Expected delta response object, not a list"
     assert "created" in resp
     assert len(resp["created"]) == 2
+    created_ids = [item.get("id") for item in resp["created"]]
+    assert all(isinstance(item_id, str) and item_id for item_id in created_ids)
+    returned_ids = resp.get("created_ids") or []
+    assert set(created_ids) <= set(returned_ids)
 
 
 @pytest.mark.asyncio
@@ -124,6 +131,47 @@ async def test_section_item_update_can_return_ids_only(
     assert update_payload.get("status") == "success"
     resp = update_payload.get("response")
     assert isinstance(resp, dict), "Expected ids-only response object"
+    assert item_id in (resp.get("updated_ids") or [])
+
+
+@pytest.mark.asyncio
+async def test_section_item_update_delta_returns_ids(
+    mcp_session: ClientSession, sample_resume_id: str
+):
+    created_payload = await call_tool_json(
+        mcp_session,
+        "resume.section.create",
+        {
+            "resume_id": sample_resume_id,
+            "section": "work",
+            "items": [{"id": None, "name": "DeltaUpdate", "summary": "Seed"}],
+            "return_mode": "delta",
+        },
+    )
+    assert created_payload.get("status") == "success"
+    created_resp = created_payload.get("response")
+    assert isinstance(created_resp, dict)
+    created_item = created_resp["created"][0]
+    item_id = created_item.get("id")
+    assert isinstance(item_id, str) and item_id
+
+    update_payload = await call_tool_json(
+        mcp_session,
+        "resume.section.update",
+        {
+            "resume_id": sample_resume_id,
+            "section": "work",
+            "items": [{"id": item_id, "summary": "Seed"}],
+            "return_mode": "delta",
+        },
+    )
+    assert update_payload.get("status") == "success"
+    resp = update_payload.get("response")
+    assert isinstance(resp, dict), "Expected delta response object"
+    updated_items = resp.get("updated") or []
+    assert any(
+        isinstance(item, dict) and item.get("id") == item_id for item in updated_items
+    ), f"Expected updated item id {item_id} in: {updated_items!r}"
     assert item_id in (resp.get("updated_ids") or [])
 
 

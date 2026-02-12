@@ -21,6 +21,7 @@ from .item_spec import (
 )
 from .sections import _extract_section_data
 from .section_item_tools import (
+    build_update_ops_for_payload,
     ensure_non_empty_string,
     extract_section_items,
     register_object_tools,
@@ -53,6 +54,36 @@ class BasicsProfilesAdapter:
             raise ValueError(
                 "basics.profiles must be a list of objects (or null to clear)"
             )
+
+        if not raw:
+            return [
+                patch_ops.op_replace(patch_ops.path_section_items(self.section), [])
+            ]
+
+        all_have_id = True
+        for entry in raw:
+            if not isinstance(entry, dict):
+                raise ValueError("basics.profiles entries must be objects")
+            entry_id = entry.get("id")
+            if not isinstance(entry_id, str) or not entry_id:
+                all_have_id = False
+                break
+
+        if all_have_id:
+            ops: List[Dict[str, Any]] = []
+            for entry in raw:
+                entry_id = entry.get("id")
+                payload = dict(entry)
+                payload.pop("id", None)
+                ops.extend(
+                    build_update_ops_for_payload(
+                        PROFILE_SPEC,
+                        item_id=entry_id,
+                        payload=payload,
+                        section_label="profile",
+                    )
+                )
+            return ops
 
         items: List[Dict[str, Any]] = []
         for entry in raw:
@@ -185,7 +216,8 @@ def register_basics_tools(mcp: FastMCP) -> None:
         payload_description=(
             "Basics object with any subset of fields to patch. "
             "Omitted fields are unchanged; null/empty values clear fields. "
-            "Prefer clear_fields to clear without sending nulls."
+            "Prefer clear_fields to clear without sending nulls. "
+            "If profiles is provided, it replaces the entire profiles list."
         ),
         build_payload=_build_basics_payload,
         extra_update_ops=lambda _payload: [
@@ -193,4 +225,5 @@ def register_basics_tools(mcp: FastMCP) -> None:
         ],
         reset_payload=BASICS_RESET,
         include_delete=False,
+        patch_tool_name="update",
     )

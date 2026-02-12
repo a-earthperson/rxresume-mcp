@@ -151,12 +151,11 @@ class ParagraphListAdapter:
         return [patch_ops.op_replace(path, html)]
 
 
-def _normalize_iso8601_loose(value: Any) -> Optional[str]:
+def _normalize_date_string(value: Any) -> Optional[str]:
     """
-    Normalize ISO8601-like date strings used by JSON Resume schema.
+    Normalize date-like values as plain strings.
 
-    Accepts YYYY, YYYY-MM, YYYY-MM-DD.
-    Returns None for null-ish/empty.
+    Accepts any non-empty string or null. Returns None for null-ish/empty.
     """
     if value is None:
         return None
@@ -164,12 +163,14 @@ def _normalize_iso8601_loose(value: Any) -> Optional[str]:
         stripped = value.strip()
         if stripped == "":
             return None
-        if not _ISO8601_LOOSE_RE.match(stripped):
-            raise ValueError(
-                "Dates must be ISO8601-like strings: YYYY, YYYY-MM, or YYYY-MM-DD"
-            )
         return stripped
     raise ValueError("Dates must be strings or null")
+
+
+def normalize_date_input(value: Any) -> str:
+    """Normalize date input to a string; null/empty clears."""
+    normalized = _normalize_date_string(value)
+    return normalized or ""
 
 
 def parse_period_bounds(period: Any) -> Tuple[Optional[str], Optional[str]]:
@@ -185,47 +186,37 @@ def parse_period_bounds(period: Any) -> Tuple[Optional[str], Optional[str]]:
     if not value:
         return None, None
 
-    # Canonical MCP-managed form: "<iso> - <iso>" or "<iso> - Present"
+    # Canonical MCP-managed form: "<start> - <end>" or "<start> - Present"
     # (Spaces around the dash are required so we don't conflict with date hyphens.)
     m = re.match(
-        r"^\s*(?P<start>[0-9]{4}(?:-[0-9]{2})?(?:-[0-9]{2})?)\s+-\s+(?P<end>[0-9]{4}(?:-[0-9]{2})?(?:-[0-9]{2})?|Present|Now|Current)\s*$",
+        r"^\s*(?P<start>.+?)\s+-\s+(?P<end>.+?)\s*$",
         value,
         flags=re.IGNORECASE,
     )
     if m:
-        start = m.group("start")
-        end_raw = m.group("end")
-        end = None
-        if end_raw and end_raw.lower() not in ("present", "now", "current"):
-            end = end_raw
-        # Validate extracted values to keep downstream consistent.
-        try:
-            start_norm = _normalize_iso8601_loose(start)
-            end_norm = _normalize_iso8601_loose(end) if end is not None else None
-        except ValueError:
+        start = _normalize_date_string(m.group("start"))
+        if not start:
             return None, None
-        return start_norm, end_norm
+        end_raw = _normalize_date_string(m.group("end"))
+        if not end_raw:
+            return None, None
+        return start, end_raw
 
-    # "Until <iso>" is used when only an end date exists.
+    # "Until <end>" is used when only an end date exists.
     m = re.match(
-        r"^\s*(?:until|till|through)\s+(?P<end>[0-9]{4}(?:-[0-9]{2})?(?:-[0-9]{2})?)\s*$",
+        r"^\s*(?:until|till|through)\s+(?P<end>.+?)\s*$",
         value,
         flags=re.IGNORECASE,
     )
     if m:
-        end = m.group("end")
-        try:
-            end_norm = _normalize_iso8601_loose(end)
-        except ValueError:
+        end = _normalize_date_string(m.group("end"))
+        if not end:
             return None, None
-        return None, end_norm
+        return None, end
 
-    # Single ISO-ish token.
+    # Single ISO-ish token (legacy upstream values).
     if _ISO8601_LOOSE_RE.match(value):
-        try:
-            return _normalize_iso8601_loose(value), None
-        except ValueError:
-            return None, None
+        return _normalize_date_string(value), None
 
     return None, None
 
@@ -240,8 +231,8 @@ def format_period_bounds(start_date: Optional[str], end_date: Optional[str]) -> 
       - end only    -> "Until <end>"
       - neither     -> ""
     """
-    start_norm = _normalize_iso8601_loose(start_date)
-    end_norm = _normalize_iso8601_loose(end_date)
+    start_norm = _normalize_date_string(start_date)
+    end_norm = _normalize_date_string(end_date)
     if start_norm and end_norm:
         return f"{start_norm} - {end_norm}"
     if start_norm and not end_norm:

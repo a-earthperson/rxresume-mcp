@@ -34,7 +34,6 @@ from .sections.item_spec import (
     build_spec,
 )
 from .sections.language import LANGUAGE_SPEC
-from .sections.profile import PROFILE_SPEC
 from .sections.project import PROJECT_SPEC
 from .sections.publication import PUBLICATION_SPEC
 from .sections.reference import REFERENCE_SPEC
@@ -49,7 +48,6 @@ class ComposedSections(BaseModel):
     model_config = {"extra": "allow"}
 
     basics: Dict[str, Any]
-    profiles: List[Any]
     # JSON Resume: `work` (upstream: sections.experience)
     work: List[Any]
     education: List[Any]
@@ -168,7 +166,6 @@ class SectionItemsAdapter:
 
 _SECTION_ITEM_SPEC_MAP = (
     # (output_key, source_key, spec)
-    ("profiles", "profiles", PROFILE_SPEC),
     ("work", "experience", EXPERIENCE_SPEC),
     ("education", "education", EDUCATION_SPEC),
     ("projects", "projects", PROJECT_SPEC),
@@ -364,7 +361,10 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
         resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
         payload: Any = Field(
             default=None,
-            description="Object with optional fields: {name?: string, tags?: string[]}.",
+            description=(
+                "Object with optional fields: {name?: string, tags?: string[]}. "
+                "At least one of name or tags must be provided."
+            ),
         ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
@@ -412,7 +412,8 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
             default=None,
             description=(
                 "Optional basics object to apply immediately after creation. "
-                "Uses canonical MCP basics fields: name, label, email, phone, location, url, summary."
+                "Uses the same shape as resume.basics.update payload "
+                "(name, label, email, phone, location, url, summary, profiles)."
             ),
         ),
     ) -> Dict[str, Any]:
@@ -480,7 +481,10 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
 def register_resume_export_tools(mcp: FastMCP) -> None:
     """Register tools that export resume outputs."""
 
-    @mcp.tool(name="resume.export.pdf", description="Export resume as PDF")
+    @mcp.tool(
+        name="resume.export.pdf",
+        description="Export resume as PDF (returns base64 content and metadata).",
+    )
     async def export_resume_pdf(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
@@ -495,7 +499,10 @@ def register_resume_export_tools(mcp: FastMCP) -> None:
             ctx=ctx,
         )
 
-    @mcp.tool(name="resume.export.screenshot", description="Export resume screenshot")
+    @mcp.tool(
+        name="resume.export.screenshot",
+        description="Export resume as PNG screenshot (returns base64 content and metadata).",
+    )
     async def export_resume_screenshot(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),

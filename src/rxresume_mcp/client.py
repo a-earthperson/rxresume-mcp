@@ -381,6 +381,8 @@ class RxResumeClient:
         slug: str,
         tags: Optional[List[str]] = None,
     ) -> Any:
+        if len(name) > 64:
+            name = name[:64]
         payload = {
             "name": name,
             "slug": slug,
@@ -403,6 +405,8 @@ class RxResumeClient:
 
         payload: Dict[str, Any] = {}
         if name is not None:
+            if len(name) > 64:
+                name = name[:64]
             payload["name"] = name
         if slug is not None:
             payload["slug"] = slug

@@ -17,13 +17,12 @@ async def test_create_ignores_or_rejects_client_supplied_item_id(
         "resume.section.create",
         {
             "resume_id": sample_resume_id,
-            "section": "profiles",
+            "section": "interests",
             "items": [
                 {
                     "id": "custom-id-123",
-                    "network": "Mastodon",
-                    "username": "eva",
-                    "url": "https://mastodon.social/@eva",
+                    "name": "Music",
+                    "keywords": ["jazz"],
                 }
             ],
         },
