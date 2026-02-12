@@ -45,8 +45,9 @@ def _resolve_section_name(raw: Any) -> str:
 def _list_targets() -> Dict[str, Any]:
     sections = sorted(_SECTION_BINDINGS.keys())
     return {
-        "targets": ["doc.update", "basics", *sections],
+        "targets": ["doc.create", "doc.update", "basics", *sections],
         "notes": [
+            "Pass target='doc.create' for resume.doc.create payload schema.",
             "Pass target='doc.update' for resume.doc.update payload schema.",
             "Pass target='basics' for resume.basics payload schema.",
             "Pass target='<section>' for a section item schema (JSON Resume section names).",
@@ -119,9 +120,8 @@ def _build_doc_update_schema() -> Dict[str, Any]:
                     "noOp": "items required unless clear is provided",
                     "clear": "clear supports {<id>: [fields]} or [{id, fields}]",
                     "partialFields": (
-                        "When updating startDate/endDate or summary/highlights "
-                        "individually, the tool preserves the untouched side from "
-                        "existing upstream data."
+                        "When updating summary/highlights individually, the tool preserves "
+                        "the untouched side from existing upstream data."
                     ),
                 },
                 "delete": {"item_ids": "item_ids must be a non-empty list of strings"},
@@ -301,6 +301,110 @@ def _build_basics_schema() -> Dict[str, Any]:
     return result
 
 
+def _build_doc_create_schema() -> Dict[str, Any]:
+    sections = sorted(_SECTION_BINDINGS.keys())
+    basics_schema = BasicsInput.model_json_schema()
+    basics_fields = sorted((basics_schema.get("properties") or {}).keys())
+
+    work_binding = _SECTION_BINDINGS.get("work")
+    work_fields = (
+        sorted(
+            (work_binding.item_model.model_json_schema().get("properties") or {}).keys()
+        )
+        if work_binding
+        else []
+    )
+    work_example = _example_item_for_section("work", work_fields)
+
+    interests_binding = _SECTION_BINDINGS.get("interests")
+    interests_fields = (
+        sorted(
+            (
+                interests_binding.item_model.model_json_schema().get("properties") or {}
+            ).keys()
+        )
+        if interests_binding
+        else []
+    )
+    interests_example = _example_item_for_section("interests", interests_fields)
+
+    result: Dict[str, Any] = {
+        "kind": "doc_create",
+        "target": "doc.create",
+        "payload": {
+            "shape": {
+                "name": "string (required)",
+                "tags": "string[] (optional)",
+                "basics": "object (optional; same shape as resume.basics.update payload)",
+                "sections": (
+                    "object mapping section->item or section->item[] "
+                    f"(sections: {', '.join(sections)})"
+                ),
+            },
+            "basics": {"jsonSchema": basics_schema, "fields": basics_fields},
+        },
+        "constraints": {
+            "required": "name is required",
+            "basics": {
+                "omittedFields": "unchanged",
+                "nullOrEmpty": "clears field (writes schema-default placeholders)",
+            },
+            "sections": {
+                "itemsShape": "items must be an object or a non-empty list of objects",
+                "id": "item.id must be omitted or null on create",
+                "notes": [
+                    "Sections is a partial object: only provided keys are created.",
+                    "Section names use JSON Resume keys and aliases (work/experience, certificates/certifications).",
+                ],
+            },
+            "responses": {
+                "default": "returns {resume_id}; when basics is provided returns {resume_id, basics}",
+                "notes": [
+                    "Create uses POST; basics/sections are applied via PATCH (non-atomic).",
+                    "Full resume documents are not returned by default.",
+                ],
+            },
+        },
+        "operations": {
+            "create": {
+                "tool": "resume.doc.create",
+                "args": {
+                    "name": "Example Resume",
+                    "tags": ["tag1"],
+                    "basics": {"name": "Ada Lovelace"},
+                    "sections": {"interests": [interests_example]},
+                },
+            }
+        },
+        "examples": {
+            "minimal": {"name": "Example Resume", "tags": []},
+            "withBasics": {
+                "name": "Example Resume",
+                "tags": ["tag1"],
+                "basics": {"name": "Ada Lovelace"},
+            },
+            "withSections": {
+                "name": "Example Resume",
+                "sections": {"interests": [interests_example]},
+            },
+            "withBasicsAndSections": {
+                "name": "Example Resume",
+                "basics": {"name": "Ada Lovelace"},
+                "sections": {
+                    "work": [
+                        {
+                            "id": None,
+                            **{k: v for k, v in work_example.items() if k != "id"},
+                        }
+                    ]
+                },
+            },
+        },
+    }
+    result["schemaVersion"] = _schema_version(result)
+    return result
+
+
 def _example_item_for_section(section: str, fields: List[str]) -> Dict[str, Any]:
     # Heuristic examples, tuned to your canonical external field names.
     ex: Dict[str, Any] = {}
@@ -366,9 +470,8 @@ def _example_item_for_section(section: str, fields: List[str]) -> Dict[str, Any]
         if "contact" in fields:
             ex["contact"] = "jane@example.com"
 
-    if "startDate" in fields and "endDate" in fields:
-        ex.setdefault("startDate", "2024-01")
-        ex.setdefault("endDate", None)
+    if "period" in fields:
+        ex.setdefault("period", "2024-01 to Present")
     if "url" in fields and "url" not in ex:
         ex["url"] = "https://example.com"
     if "description" in fields and "description" not in ex:
@@ -386,9 +489,7 @@ def _build_section_schema(section: str) -> Dict[str, Any]:
     fields = sorted((item_schema.get("properties") or {}).keys())
 
     date_fields = [
-        field
-        for field in ("startDate", "endDate", "date", "releaseDate")
-        if field in fields
+        field for field in ("period", "date", "releaseDate") if field in fields
     ]
     paragraph_pairs = [
         (a.paragraph_key, a.listitems_key)
@@ -422,7 +523,7 @@ def _build_section_schema(section: str) -> Dict[str, Any]:
             "dates": {
                 "format": "string or null",
                 "note": (
-                    "Date fields ("
+                    "Temporal fields ("
                     + ", ".join(date_fields)
                     + ") accept any string or null. Values are trimmed and returned as provided; "
                     "no format validation or hidden canonicalization is performed."
@@ -537,8 +638,8 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
     @mcp.tool(
         name="resume.schema.get",
         description=(
-            "Get MCP schema docs for doc.update, basics, or a section, including fields, "
-            "examples, and usage constraints."
+            "Get MCP schema docs for doc.create, doc.update, basics, or a section, "
+            "including fields, examples, and usage constraints."
         ),
     )
     async def get_schema(
@@ -546,7 +647,7 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
         target: Any = Field(
             default=None,
             description=(
-                "Schema target. Use 'doc.update', 'basics', or a section name "
+                "Schema target. Use 'doc.create', 'doc.update', 'basics', or a section name "
                 f"({', '.join(sorted(_SECTION_BINDINGS.keys()))}). "
                 "If omitted, returns an index of targets."
             ),
@@ -559,6 +660,8 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
                 return indexed
 
             target_raw = target.strip().lower() if isinstance(target, str) else None
+            if target_raw in {"doc.create", "doc_create", "create"}:
+                return _build_doc_create_schema()
             if target_raw in {"doc.update", "doc_update", "doc"}:
                 return _build_doc_update_schema()
 
@@ -567,7 +670,12 @@ def register_resume_schema_tools(mcp: FastMCP) -> None:
                 return _build_basics_schema()
             if resolved not in _SECTION_BINDINGS:
                 allowed = ", ".join(
-                    ["doc.update", "basics", *sorted(_SECTION_BINDINGS.keys())]
+                    [
+                        "doc.create",
+                        "doc.update",
+                        "basics",
+                        *sorted(_SECTION_BINDINGS.keys()),
+                    ]
                 )
                 raise ValueError(
                     f"Unknown target: {target!r}. Expected one of: {allowed}."

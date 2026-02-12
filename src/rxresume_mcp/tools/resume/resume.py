@@ -755,6 +755,15 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
                 "(name, label, email, phone, location, url, summary, profiles)."
             ),
         ),
+        sections: Optional[Dict[str, Any]] = Field(
+            default=None,
+            description=(
+                "Optional sections object to apply immediately after creation. "
+                "Shape: {<section>: <item>|<item[]>}. "
+                "Section names use JSON Resume keys (work, education, projects, skills, "
+                "languages, interests, awards, certificates, publications, volunteer, references)."
+            ),
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             # Generate a slug server-side; upstream requires it but MCP hides it.
@@ -765,26 +774,61 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
                 tags=tags,
             )
             resume_id = _coerce_created_resume_id(created)
-            if basics is None:
+            ops: List[Dict[str, Any]] = []
+            created_ids: List[str] = []
+            include_basics = False
+
+            if basics is not None:
+                if not isinstance(basics, dict):
+                    raise ValueError("basics must be an object when provided")
+                if basics:
+                    normalized = BasicsInput.model_validate(basics)
+                    payload_dict = normalized.model_dump(exclude_unset=True)
+                    ops.extend(
+                        BASICS_SPEC.build_update_ops(payload_dict, BASICS_TARGET)
+                    )
+                    # Keep internal customFields stable (canonical schema does not surface it).
+                    ops.append(
+                        patch_ops.op_replace(
+                            patch_ops.path_basics_field("customFields"), []
+                        )
+                    )
+                    include_basics = True
+
+            if sections is not None:
+                if not isinstance(sections, dict):
+                    raise ValueError("sections must be an object when provided")
+                for section_name, items in sections.items():
+                    binding = _resolve_section(section_name)
+                    if items is None:
+                        raise ValueError(
+                            f"sections.{section_name} must be an object or list of objects"
+                        )
+                    for model_item in coerce_model_items(
+                        items,
+                        binding.item_model,
+                        label=f"{binding.label} items",
+                    ):
+                        item_payload = prepare_item_with_spec(
+                            model_item, created_ids, binding.spec
+                        )
+                        ops.append(
+                            patch_ops.op_add(
+                                patch_ops.path_section_items_append(binding.section),
+                                item_payload,
+                            )
+                        )
+
+            if not ops:
                 return {"resume_id": resume_id}
 
-            if not isinstance(basics, dict):
-                raise ValueError("basics must be an object when provided")
-            if not basics:
-                return {"resume_id": resume_id}
-
-            normalized = BasicsInput.model_validate(basics)
-            payload_dict = normalized.model_dump(exclude_unset=True)
-            ops = BASICS_SPEC.build_update_ops(payload_dict, BASICS_TARGET)
-            # Keep internal customFields stable (canonical schema does not surface it).
-            ops.append(
-                patch_ops.op_replace(patch_ops.path_basics_field("customFields"), [])
-            )
             validated_ops = patch_ops.validate_patch_ops(ops)
             patched = await client.patch_resume(resume_id, patch_ops=validated_ops)
-            resume = _require_resume_object(patched)
-            basics_payload = BASICS_SPEC.reshape(_build_basics_payload(resume))
-            return {"resume_id": resume_id, "basics": basics_payload}
+            if include_basics:
+                resume = _require_resume_object(patched)
+                basics_payload = BASICS_SPEC.reshape(_build_basics_payload(resume))
+                return {"resume_id": resume_id, "basics": basics_payload}
+            return {"resume_id": resume_id}
 
         return await execute_rxresume_operation(
             operation_name=f"resume.create: {name}",

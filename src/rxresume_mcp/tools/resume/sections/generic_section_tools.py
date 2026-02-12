@@ -304,21 +304,6 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                 if isinstance(item_id, str) and item_id:
                     updated_ids.append(item_id)
 
-            needs_existing_period = False
-            for raw in items_list:
-                if isinstance(raw, dict):
-                    has_start = "startDate" in raw
-                    has_end = "endDate" in raw
-                    if has_start ^ has_end:
-                        needs_existing_period = True
-                        break
-            if not needs_existing_period:
-                for instruction in clear_instructions:
-                    fields = instruction.get("fields") or []
-                    if ("startDate" in fields) ^ ("endDate" in fields):
-                        needs_existing_period = True
-                        break
-
             needs_existing_paragraph_list = False
             paragraph_list_adapters = [
                 a for a in binding.spec.adapters if isinstance(a, ParagraphListAdapter)
@@ -347,7 +332,7 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
                     if needs_existing_paragraph_list:
                         break
 
-            needs_existing = needs_existing_period or needs_existing_paragraph_list
+            needs_existing = needs_existing_paragraph_list
 
             existing_by_id: Dict[str, Dict[str, Any]] = {}
             if needs_existing:

@@ -17,12 +17,11 @@ from .conftest import call_tool_json
                 "area": "HCI",
                 "score": None,
                 "location": None,
-                "startDate": None,
-                "endDate": None,
+                "period": None,
                 "url": None,
                 "description": None,
             },
-            ("score", "location", "startDate", "endDate", "url", "description"),
+            ("score", "location", "period", "url", "description"),
         ),
         (
             "work",
@@ -31,25 +30,23 @@ from .conftest import call_tool_json
                 "name": "Null Period Co",
                 "position": "Tester",
                 "location": None,
-                "startDate": None,
-                "endDate": None,
+                "period": None,
                 "url": None,
                 "summary": None,
                 "highlights": None,
             },
-            ("location", "startDate", "endDate", "url", "summary", "highlights"),
+            ("location", "period", "url", "summary", "highlights"),
         ),
         (
             "projects",
             {
                 "id": None,
                 "name": "Project With Nulls",
-                "startDate": None,
-                "endDate": None,
+                "period": None,
                 "url": None,
                 "description": None,
             },
-            ("startDate", "endDate", "url", "description"),
+            ("period", "url", "description"),
         ),
         (
             "publications",
@@ -69,12 +66,11 @@ from .conftest import call_tool_json
                 "id": None,
                 "organization": "VolOrg",
                 "location": None,
-                "startDate": None,
-                "endDate": None,
+                "period": None,
                 "url": None,
                 "summary": None,
             },
-            ("location", "startDate", "endDate", "url", "summary"),
+            ("location", "period", "url", "summary"),
         ),
         (
             "references",
@@ -154,7 +150,7 @@ async def test_create_accepts_null_for_optional_fields(
 
 
 @pytest.mark.asyncio
-async def test_work_create_preserves_null_end_date(
+async def test_work_create_preserves_null_period(
     mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
@@ -168,8 +164,7 @@ async def test_work_create_preserves_null_end_date(
                     "id": None,
                     "name": "Null End Date Co",
                     "position": "Engineer",
-                    "startDate": "Jan 2024",
-                    "endDate": None,
+                    "period": None,
                 }
             ],
             "return_mode": "delta",
@@ -183,8 +178,7 @@ async def test_work_create_preserves_null_end_date(
     assert isinstance(created_items, list) and created_items
     created = created_items[0]
     assert isinstance(created, dict)
-    assert created.get("startDate") == "Jan 2024"
-    assert created.get("endDate") is None
+    assert created.get("period") is None
 
 
 @pytest.mark.asyncio

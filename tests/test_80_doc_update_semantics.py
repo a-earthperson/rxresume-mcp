@@ -161,7 +161,7 @@ async def test_doc_update_allows_basics_clear_fields_only(
 
 
 @pytest.mark.asyncio
-async def test_doc_update_sections_update_preserves_period_bounds(
+async def test_doc_update_sections_update_replaces_period(
     mcp_session: ClientSession, sample_resume_id: str
 ):
     created = await call_tool_json(
@@ -178,8 +178,7 @@ async def test_doc_update_sections_update_preserves_period_bounds(
                             {
                                 "id": None,
                                 "name": "Period Work",
-                                "startDate": "2020-01",
-                                "endDate": "2021-01",
+                                "period": "2020-01 to 2021-01",
                             }
                         ],
                     }
@@ -201,7 +200,7 @@ async def test_doc_update_sections_update_preserves_period_bounds(
                     {
                         "op": "update",
                         "section": "work",
-                        "items": [{"id": created_id, "startDate": "2019-06"}],
+                        "items": [{"id": created_id, "period": "2019-06 to 2021-01"}],
                     }
                 ]
             },
@@ -213,12 +212,11 @@ async def test_doc_update_sections_update_preserves_period_bounds(
     work_items = _get_section_items(resume, "work")
     item = _find_item(work_items, created_id)
     assert item is not None, f"Expected work item {created_id} in {work_items!r}"
-    assert item.get("startDate") == "2019-06"
-    assert item.get("endDate") == "2021-01"
+    assert item.get("period") == "2019-06 to 2021-01"
 
 
 @pytest.mark.asyncio
-async def test_doc_update_sections_create_encodes_start_only_period(
+async def test_doc_update_sections_create_sets_period(
     mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
@@ -235,8 +233,7 @@ async def test_doc_update_sections_create_encodes_start_only_period(
                             {
                                 "id": None,
                                 "name": "Open Period Work",
-                                "startDate": "Jan 2024",
-                                "endDate": None,
+                                "period": "Jan 2024 to Present",
                             }
                         ],
                     }
@@ -252,7 +249,7 @@ async def test_doc_update_sections_create_encodes_start_only_period(
 
 
 @pytest.mark.asyncio
-async def test_doc_update_sections_create_encodes_end_only_period(
+async def test_doc_update_sections_create_sets_period_open_start(
     mcp_session: ClientSession, sample_resume_id: str
 ):
     payload = await call_tool_json(
@@ -269,8 +266,7 @@ async def test_doc_update_sections_create_encodes_end_only_period(
                             {
                                 "id": None,
                                 "name": "Closed Period Work",
-                                "startDate": None,
-                                "endDate": "Feb 2024",
+                                "period": "Present to Feb 2024",
                             }
                         ],
                     }

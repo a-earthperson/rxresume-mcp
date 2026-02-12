@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 from rxresume_mcp import patch_ops
 
@@ -18,7 +18,6 @@ from .tool_helpers import (
 _PL_UL_RE = re.compile(r"<ul[^>]*>.*?</ul>", re.IGNORECASE | re.DOTALL)
 _PL_LI_RE = re.compile(r"<li[^>]*>(.*?)</li>", re.IGNORECASE | re.DOTALL)
 _PL_TAG_RE = re.compile(r"<[^>]+>")
-_PERIOD_OPEN_MARKER = "Present"
 
 
 def _strip_tags(value: str) -> str:
@@ -170,61 +169,13 @@ def normalize_date_input(value: Any) -> str:
     return normalized or ""
 
 
-def parse_period_bounds(period: Any) -> Tuple[Optional[str], Optional[str]]:
-    """
-    Best-effort parse upstream `period` strings into (startDate, endDate).
-
-    Reversible for MCP-managed values produced by `format_period_bounds`.
-    """
-    if not isinstance(period, str):
-        return None, None
-    value = period.strip()
-    if not value:
-        return None, None
-
-    if " to " not in value:
-        start = _normalize_date_string(value)
-        return start, None
-    start_raw, end_raw = value.split(" to ", 1)
-    if start_raw.strip() == _PERIOD_OPEN_MARKER:
-        start_raw = None
-    if end_raw.strip() == _PERIOD_OPEN_MARKER:
-        end_raw = None
-    start = _normalize_date_string(start_raw) if start_raw is not None else None
-    end = _normalize_date_string(end_raw) if end_raw is not None else None
-    return start, end
-
-    return None, None
-
-
-def format_period_bounds(start_date: Optional[str], end_date: Optional[str]) -> str:
-    """
-    Encode (startDate, endDate) into upstream `period` string.
-
-    This is the *reversible* MCP-managed representation:
-      - start+end   -> "<start> to <end>"
-      - start only  -> "<start> to [open]"
-      - end only    -> "[open] to <end>"
-      - neither     -> ""
-    """
-    start_norm = _normalize_date_string(start_date)
-    end_norm = _normalize_date_string(end_date)
-    if start_norm is None and end_norm is None:
-        return ""
-    if start_norm is None:
-        return f"{_PERIOD_OPEN_MARKER} to {end_norm}"
-    if end_norm is None:
-        return f"{start_norm} to {_PERIOD_OPEN_MARKER}"
-    return f"{start_norm} to {end_norm}"
-
-
 @dataclass(frozen=True)
 class NoopFieldAdapter:
     """
     Adapter used only to expose fields in Pydantic models.
 
     Real storage/reshaping for those fields is handled by a different adapter
-    (e.g. `PeriodRangeAdapter`) that runs later in the spec adapter chain.
+    that runs later in the spec adapter chain.
     """
 
     def apply_defaults(self, payload: Dict[str, Any]) -> None:
@@ -237,50 +188,6 @@ class NoopFieldAdapter:
         self, payload: Dict[str, Any], target: PatchTarget
     ) -> List[Dict[str, Any]]:
         return []
-
-
-@dataclass(frozen=True)
-class PeriodRangeAdapter:
-    """
-    Adapter that exposes JSON Resume `startDate`/`endDate` while storing upstream `period`.
-
-    Important: `build_update_ops` requires BOTH keys to be present in the payload
-    whenever either is updated. Tool handlers fill the missing side from existing
-    upstream data to avoid corrupting partial updates.
-    """
-
-    server_key: str = "period"
-    start_key: str = "startDate"
-    end_key: str = "endDate"
-    include_in_model: bool = False
-
-    def apply_defaults(self, payload: Dict[str, Any]) -> None:
-        start = payload.pop(self.start_key, None) if self.start_key in payload else None
-        end = payload.pop(self.end_key, None) if self.end_key in payload else None
-        # Always ensure upstream field exists (upstream schemas require it).
-        payload.setdefault(self.server_key, format_period_bounds(start, end))
-
-    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        start, end = parse_period_bounds(payload.get(self.server_key))
-        return {self.start_key: start, self.end_key: end}
-
-    def build_update_ops(
-        self, payload: Dict[str, Any], target: PatchTarget
-    ) -> List[Dict[str, Any]]:
-        has_start = self.start_key in payload
-        has_end = self.end_key in payload
-        if not has_start and not has_end:
-            return []
-        if not has_start or not has_end:
-            raise ValueError(
-                "startDate/endDate must be updated together (the tool fills the untouched side "
-                "from existing period to prevent corruption)."
-            )
-        start_raw = payload.pop(self.start_key)
-        end_raw = payload.pop(self.end_key)
-        period_value = format_period_bounds(start_raw, end_raw)
-        path = target.field_path(self.server_key)
-        return [patch_ops.op_replace(path, period_value)]
 
 
 @dataclass(frozen=True)

@@ -126,11 +126,9 @@
               "description": "e.g. http://facebook.example.com",
               "format": "uri"
             },
-            "startDate": {
-              "$ref": "#/definitions/iso8601"
-            },
-            "endDate": {
-              "$ref": "#/definitions/iso8601"
+            "period": {
+              "type": "string",
+              "description": "Time period as a free-form string, e.g. 2024-01 to Present"
             },
             "summary": {
               "type": "string",
@@ -168,11 +166,9 @@
               "description": "e.g. http://facebook.example.com",
               "format": "uri"
             },
-            "startDate": {
-              "$ref": "#/definitions/iso8601"
-            },
-            "endDate": {
-              "$ref": "#/definitions/iso8601"
+            "period": {
+              "type": "string",
+              "description": "Time period as a free-form string, e.g. 2024-01 to Present"
             },
             "summary": {
               "type": "string",
@@ -214,11 +210,9 @@
               "type": "string",
               "description": "e.g. Bachelor"
             },
-            "startDate": {
-              "$ref": "#/definitions/iso8601"
-            },
-            "endDate": {
-              "$ref": "#/definitions/iso8601"
+            "period": {
+              "type": "string",
+              "description": "Time period as a free-form string, e.g. 2024-01 to Present"
             },
             "score": {
               "type": "string",
@@ -442,11 +436,9 @@
                 "description": "e.g. AngularJS"
               }
             },
-            "startDate": {
-              "$ref": "#/definitions/iso8601"
-            },
-            "endDate": {
-              "$ref": "#/definitions/iso8601"
+            "period": {
+              "type": "string",
+              "description": "Time period as a free-form string, e.g. 2024-01 to Present"
             },
             "url": {
               "type": "string",

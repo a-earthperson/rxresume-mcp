@@ -4,6 +4,24 @@ from mcp import ClientSession
 from .conftest import call_tool_json
 
 
+async def _get_full_resume(mcp_session: ClientSession, resume_id: str) -> dict:
+    payload = await call_tool_json(
+        mcp_session, "resume.doc.get", {"resume_id": resume_id, "summary": False}
+    )
+    assert payload.get("status") == "success", payload
+    resume = payload.get("response") or {}
+    assert isinstance(resume, dict), f"Expected resume object, got: {resume!r}"
+    return resume
+
+
+def _get_section_items(resume: dict, section: str) -> list[dict]:
+    sections = resume.get("sections") or {}
+    assert isinstance(sections, dict), f"Expected sections object, got: {sections!r}"
+    items = sections.get(section) or []
+    assert isinstance(items, list), f"Expected {section} list, got: {items!r}"
+    return [item for item in items if isinstance(item, dict)]
+
+
 @pytest.mark.asyncio
 async def test_doc_create_is_compact_by_default(
     mcp_session: ClientSession,
@@ -30,6 +48,83 @@ async def test_doc_create_is_compact_by_default(
     # cleanup
     rid = resp.get("resume_id") or resp.get("id")
     await call_tool_json(mcp_session, "resume.doc.delete", {"resume_id": rid})
+
+
+@pytest.mark.asyncio
+async def test_doc_create_accepts_sections_object_and_is_compact(
+    mcp_session: ClientSession,
+):
+    payload = await call_tool_json(
+        mcp_session,
+        "resume.doc.create",
+        {
+            "name": "Create With Sections",
+            "tags": ["pytest", "create", "sections"],
+            "sections": {
+                "interests": [{"id": None, "name": "Chess"}],
+            },
+        },
+    )
+    assert payload.get("status") == "success", payload
+    resp = payload.get("response") or {}
+    assert isinstance(resp, dict)
+    rid = resp.get("resume_id") or resp.get("id")
+    assert isinstance(rid, str) and rid
+    assert "resume" not in resp
+    assert "basics" not in resp
+
+    try:
+        resume = await _get_full_resume(mcp_session, rid)
+        interests = _get_section_items(resume, "interests")
+        assert any(
+            isinstance(item, dict) and item.get("name") == "Chess" for item in interests
+        )
+    finally:
+        await call_tool_json(mcp_session, "resume.doc.delete", {"resume_id": rid})
+
+
+@pytest.mark.asyncio
+async def test_doc_create_accepts_basics_and_sections(
+    mcp_session: ClientSession,
+):
+    payload = await call_tool_json(
+        mcp_session,
+        "resume.doc.create",
+        {
+            "name": "Create With Basics And Sections",
+            "tags": ["pytest", "create", "basics"],
+            "basics": {"name": "Ada Lovelace"},
+            "sections": {
+                "work": [
+                    {
+                        "id": None,
+                        "name": "Acme Corp",
+                        "position": "Engineer",
+                    }
+                ]
+            },
+        },
+    )
+    assert payload.get("status") == "success", payload
+    resp = payload.get("response") or {}
+    assert isinstance(resp, dict)
+    rid = resp.get("resume_id") or resp.get("id")
+    assert isinstance(rid, str) and rid
+    assert "resume" not in resp
+    basics = resp.get("basics") or {}
+    assert basics.get("name") == "Ada Lovelace"
+
+    try:
+        resume = await _get_full_resume(mcp_session, rid)
+        basics_full = resume.get("sections", {}).get("basics") or {}
+        assert basics_full.get("name") == "Ada Lovelace"
+        work_items = _get_section_items(resume, "work")
+        assert any(
+            isinstance(item, dict) and item.get("name") == "Acme Corp"
+            for item in work_items
+        )
+    finally:
+        await call_tool_json(mcp_session, "resume.doc.delete", {"resume_id": rid})
 
 
 @pytest.mark.asyncio

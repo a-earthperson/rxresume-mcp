@@ -12,7 +12,6 @@ from rxresume_mcp import patch_ops
 from rxresume_mcp.client import RxResumeClient
 
 from ...core import execute_rxresume_operation
-from .field_adapters import parse_period_bounds
 from .field_adapters import ParagraphListAdapter, parse_paragraph_list_html
 from .normalize import _normalize_url_fields
 from .sections import (
@@ -308,49 +307,6 @@ def prepare_item_with_spec(
     return payload
 
 
-_PERIOD_BOUND_KEYS = ("startDate", "endDate")
-
-
-def _fill_period_bounds_from_existing(
-    payload: Dict[str, Any],
-    *,
-    existing_item: Optional[Dict[str, Any]],
-    section_label: str = "item",
-) -> None:
-    """
-    If payload partially updates startDate/endDate, fill the missing side from existing `period`.
-
-    This keeps patch semantics safe: mutating one bound doesn't clobber the other.
-    """
-    has_start = _PERIOD_BOUND_KEYS[0] in payload
-    has_end = _PERIOD_BOUND_KEYS[1] in payload
-    if not has_start and not has_end:
-        return
-    if has_start and has_end:
-        return
-
-    if not existing_item:
-        raise ValueError(
-            f"{section_label} updates to startDate/endDate require an existing item to preserve the untouched bound"
-        )
-    existing_period = existing_item.get("period")
-    start_existing, end_existing = parse_period_bounds(existing_period)
-    if (
-        isinstance(existing_period, str)
-        and existing_period.strip()
-        and start_existing is None
-        and end_existing is None
-    ):
-        raise ValueError(
-            f"Cannot partially update {section_label} startDate/endDate because the existing upstream period "
-            "is not parseable. Provide both startDate and endDate to overwrite it."
-        )
-    if not has_start:
-        payload[_PERIOD_BOUND_KEYS[0]] = start_existing
-    if not has_end:
-        payload[_PERIOD_BOUND_KEYS[1]] = end_existing
-
-
 def _fill_paragraph_list_from_existing(
     payload: Dict[str, Any],
     *,
@@ -407,11 +363,8 @@ def build_update_ops_for_payload(
     existing_item: Optional[Dict[str, Any]] = None,
     section_label: str = "item",
 ) -> List[Dict[str, Any]]:
-    """Build update ops for a raw payload dict with period-safe semantics."""
+    """Build update ops for a raw payload dict with safe semantics."""
     normalized = dict(payload)
-    _fill_period_bounds_from_existing(
-        normalized, existing_item=existing_item, section_label=section_label
-    )
     _fill_paragraph_list_from_existing(
         normalized, existing_item=existing_item, spec=spec, section_label=section_label
     )
@@ -630,23 +583,6 @@ def register_section_item_tools(
                 if isinstance(item_id, str) and item_id:
                     updated_ids.append(item_id)
 
-            # If any update touches only one bound (startDate/endDate), we need
-            # existing upstream state so we can preserve the untouched bound.
-            needs_existing_period = False
-            for model_item in model_items:
-                dumped = model_item.model_dump(exclude_unset=True)
-                has_start = "startDate" in dumped
-                has_end = "endDate" in dumped
-                if has_start ^ has_end:
-                    needs_existing_period = True
-                    break
-            if not needs_existing_period:
-                for instruction in clear_instructions:
-                    fields = instruction.get("fields") or []
-                    if ("startDate" in fields) ^ ("endDate" in fields):
-                        needs_existing_period = True
-                        break
-
             existing_by_id: Optional[Dict[str, Dict[str, Any]]] = None
             needs_existing_paragraph_list = False
             paragraph_list_adapters = [
@@ -675,7 +611,7 @@ def register_section_item_tools(
                     if needs_existing_paragraph_list:
                         break
 
-            if needs_existing_period or needs_existing_paragraph_list:
+            if needs_existing_paragraph_list:
                 resume = _require_resume_object(await client.get_resume(resume_id))
                 existing_items = extract_section_items(resume, section, label=label)
                 existing_by_id = {

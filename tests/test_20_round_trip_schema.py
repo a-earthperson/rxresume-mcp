@@ -78,7 +78,7 @@ async def test_experience_item_round_trip_uses_name_not_company(
                     "name": "Tooling Inc",
                     "position": "API Tester",
                     "location": "Remote",
-                    "startDate": "2026",
+                    "period": "2026",
                     "url": "https://tooling.example",
                     "summary": "Did testing",
                     "highlights": ["H1"],

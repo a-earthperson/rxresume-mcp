@@ -9,7 +9,6 @@ from mcp.server.fastmcp import FastMCP
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
 from .field_adapters import (
     NoopFieldAdapter,
-    PeriodRangeAdapter,
     ParagraphListAdapter,
     ScalarFieldAdapter,
     WebsiteFieldAdapter,
@@ -38,20 +37,9 @@ EXPERIENCE_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
-        name="startDate",
+        name="period",
         field_type=str,
-        adapter=NoopFieldAdapter(),
-    ),
-    FieldSpec(
-        name="endDate",
-        field_type=str,
-        adapter=NoopFieldAdapter(),
-    ),
-    # Stored upstream as `period`, exposed as startDate/endDate.
-    FieldSpec(
-        name="__period",
-        field_type=str,
-        adapter=PeriodRangeAdapter(server_key="period"),
+        adapter=ScalarFieldAdapter(response_key="period"),
     ),
     FieldSpec(
         name="url",

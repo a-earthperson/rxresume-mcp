@@ -7,12 +7,7 @@ from typing import List, Union
 from mcp.server.fastmcp import FastMCP
 
 from .section_item_tools import ensure_non_empty_string, register_section_item_tools
-from .field_adapters import (
-    NoopFieldAdapter,
-    PeriodRangeAdapter,
-    ScalarFieldAdapter,
-    WebsiteFieldAdapter,
-)
+from .field_adapters import ScalarFieldAdapter, WebsiteFieldAdapter
 from .item_spec import FieldSpec, build_item_model, build_item_spec
 
 EDUCATION_FIELDS = [
@@ -51,20 +46,9 @@ EDUCATION_FIELDS = [
         adapter=ScalarFieldAdapter(response_key="location"),
     ),
     FieldSpec(
-        name="startDate",
+        name="period",
         field_type=str,
-        adapter=NoopFieldAdapter(),
-    ),
-    FieldSpec(
-        name="endDate",
-        field_type=str,
-        adapter=NoopFieldAdapter(),
-    ),
-    # Stored upstream as `period`, exposed as startDate/endDate.
-    FieldSpec(
-        name="__period",
-        field_type=str,
-        adapter=PeriodRangeAdapter(server_key="period"),
+        adapter=ScalarFieldAdapter(response_key="period"),
     ),
     FieldSpec(
         name="url",
