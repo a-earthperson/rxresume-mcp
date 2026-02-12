@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from dataclasses import dataclass
 from typing import Literal
 
@@ -113,7 +114,11 @@ def _resolve_rxresume_settings(args: argparse.Namespace) -> RxResumeSettings:
     )
 
 
-def parse_args():
+def _running_under_pytest() -> bool:
+    return "PYTEST_CURRENT_TEST" in os.environ or "pytest" in sys.modules
+
+
+def parse_args(argv: list[str] | None = None, *, allow_unknown: bool = False):
     """Parse command line arguments for MCP server."""
     app_url_default = _get_env_value("APP_URL", default=RxResumeSettings.base_url)
     app_api_key_default = _get_env_value(
@@ -239,10 +244,12 @@ def parse_args():
         default=mcp_debug_default,
         help="Enable MCP debug mode (default: environment variable MCP_DEBUG)",
     )
-    return parser.parse_args()
+    if allow_unknown:
+        return parser.parse_known_args(argv)[0]
+    return parser.parse_args(argv)
 
 
-args = parse_args()
+args = parse_args(allow_unknown=_running_under_pytest())
 
 RXRESUME = _resolve_rxresume_settings(args)
 
