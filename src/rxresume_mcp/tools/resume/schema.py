@@ -288,7 +288,7 @@ def _build_section_schema(section: str) -> Dict[str, Any]:
                     "notes": [
                         "Envelope is always returned; unused lists are empty.",
                         "items is populated only when mode='all'.",
-                        "delta is populated only when mode='delta'.",
+                        "delta is populated when mode is 'delta' or 'all'.",
                         "ids always contains id lists for created/updated/deleted.",
                     ],
                 },

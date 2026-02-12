@@ -115,3 +115,27 @@ async def test_section_item_update_allows_clear_only_without_items(
     assert (
         updated_item.get("summary") is None
     ), f"Expected summary cleared to None, got: {updated_item.get('summary')!r}"
+
+
+@pytest.mark.asyncio
+async def test_generic_section_update_description_calls_out_clear_only(
+    mcp_session: ClientSession,
+):
+    tools_result = await mcp_session.list_tools()
+    tools = getattr(tools_result, "tools", None) or []
+    update_tool = next(
+        (
+            tool
+            for tool in tools
+            if getattr(tool, "name", None) == "resume.section.update"
+        ),
+        None,
+    )
+    assert (
+        update_tool is not None
+    ), "Expected resume.section.update tool to be advertised."
+    description = getattr(update_tool, "description", "") or ""
+    assert "clear-only" in description.lower(), (
+        "resume.section.update description must mention clear-only usage. "
+        f"Description: {description!r}"
+    )

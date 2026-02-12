@@ -205,11 +205,19 @@ async def execute_rxresume_operation(
             code = "UNAUTHORIZED"
         elif http_status == 400:
             code = "BAD_REQUEST"
-        message = "Reactive Resume API request failed"
+
+        if code == "NOT_FOUND" and resume_id:
+            message = f"Resume not found: {resume_id}"
+        else:
+            message = "Reactive Resume API request failed"
+
         details: List[Dict[str, Any]] = []
+        if resume_id:
+            details.append({"field": "resume_id", "received": resume_id})
         payload_value = getattr(exc, "payload", None)
         if payload_value is not None:
             details.append({"field": "upstream", "received": payload_value})
+
         tool_exc = ToolError(
             code=code,
             message=message,

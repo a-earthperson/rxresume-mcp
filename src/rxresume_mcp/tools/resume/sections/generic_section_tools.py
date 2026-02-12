@@ -9,7 +9,7 @@ Section-specific tool registrations are optional and may not be enabled.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -258,11 +258,11 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         ctx: Context,
         resume_id: Any = Field(default=None, description="Resume ID (UUID string)."),
         section: Any = Field(default=None, description=_section_param_description()),
-        items: Any = Field(
+        items: Optional[List[Dict[str, Any]]] = Field(
             default=None,
             description=(
-                "List of item objects to update; each item must include id. "
-                "Omit items only when using clear."
+                "Optional list of item objects to update; each item must include id. "
+                "Omit when performing a clear-only update."
             ),
         ),
         clear: Any = Field(

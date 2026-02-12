@@ -201,7 +201,8 @@ class BasicsSummaryAdapter:
         return None
 
     def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        basics = _build_basics_payload(payload)
+        basics_raw = _build_basics_payload(payload)
+        basics = BASICS_SPEC.reshape(basics_raw)
         if not isinstance(basics, dict):
             return {"basics": basics}
         summarized = dict(basics)
@@ -333,6 +334,18 @@ def _reshape_resume(payload: Any) -> Any:
     resume = _require_resume_object(payload)
     composed = _compose_resume_payload(resume)
     return ComposedResume.model_validate(composed).model_dump()
+
+
+def _normalize_export_result(payload: Any) -> Dict[str, Any]:
+    """Normalize export responses to a URL-only payload."""
+    if isinstance(payload, dict):
+        for key in ("url", "downloadUrl", "download_url"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return {"url": value.strip()}
+    if isinstance(payload, str) and payload.strip():
+        return {"url": payload.strip()}
+    raise ValueError("Export response did not include a URL")
 
 
 def _summarize_resume(payload: Any) -> Any:
@@ -614,7 +627,7 @@ def register_resume_export_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="resume.export.pdf",
-        description="Export resume as PDF (returns base64 content and metadata).",
+        description="Export resume as PDF (returns a URL only).",
     )
     async def export_resume_pdf(
         ctx: Context,
@@ -622,7 +635,7 @@ def register_resume_export_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.export_resume_pdf(resume_id=resume_id)
-            return _reshape_resume(result)
+            return _normalize_export_result(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.export_pdf: {resume_id}",
@@ -632,7 +645,7 @@ def register_resume_export_tools(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="resume.export.screenshot",
-        description="Export resume as PNG screenshot (returns base64 content and metadata).",
+        description="Export resume as PNG screenshot (returns a URL only).",
     )
     async def export_resume_screenshot(
         ctx: Context,
@@ -640,7 +653,7 @@ def register_resume_export_tools(mcp: FastMCP) -> None:
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.export_resume_screenshot(resume_id=resume_id)
-            return _reshape_resume(result)
+            return _normalize_export_result(result)
 
         return await execute_rxresume_operation(
             operation_name=f"resume.export_screenshot: {resume_id}",

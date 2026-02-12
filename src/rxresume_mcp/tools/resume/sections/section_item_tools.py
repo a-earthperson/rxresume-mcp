@@ -254,9 +254,9 @@ def shape_mutation_result(
         "mode": "all" | "delta" | "none",
         "items": [...],  # full list when mode="all"; empty otherwise
         "delta": {
-          "created": [...],  # items when mode="delta"; empty otherwise
+          "created": [...],  # items when mode="delta" or "all"; empty otherwise
           "updated": [...],
-          "deleted": [...],  # ids when mode="delta"; empty otherwise
+          "deleted": [...],  # ids when mode="delta" or "all"; empty otherwise
         },
         "ids": {
           "created": [...],  # ids for created items
@@ -277,6 +277,9 @@ def shape_mutation_result(
     }
     if mode == "all":
         envelope["items"] = list(all_items) if isinstance(all_items, list) else []
+        envelope["delta"]["created"] = _select_items_by_ids(all_items, set(created))
+        envelope["delta"]["updated"] = _select_items_by_ids(all_items, set(updated))
+        envelope["delta"]["deleted"] = deleted
         return envelope
     if mode == "delta":
         envelope["delta"]["created"] = _select_items_by_ids(all_items, set(created))
@@ -735,6 +738,7 @@ def register_section_item_tools(
         description=(
             f"Update one or more {noun} items by id. "
             "item.id is required; other fields are optional. "
+            "Clear-only updates are allowed (omit items and provide clear). "
             "Returns an envelope with mode/items/delta/ids; unused fields are empty."
         ),
     )(_update)

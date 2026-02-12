@@ -75,14 +75,11 @@ strings (the MCP client validates before calling the API).
 
 ## Export resume as PDF
 - **GET** `/printer/resume/{id}/pdf`
-- Response:
-  - If the API returns bytes, MCP base64-encodes to
-    `{ content_type, content_base64, size_bytes }`.
-  - If the API returns JSON/text, MCP forwards it as-is.
+- Response: `{ "url": "<download_url>" }`
 
 ## Get resume screenshot
 - **GET** `/printer/resume/{id}/screenshot`
-- Response: same behavior as PDF export (bytes -> base64; JSON/text forwarded).
+- Response: `{ "url": "<download_url>" }`
 
 ## Other known endpoints (not wrapped by MCP tools)
 

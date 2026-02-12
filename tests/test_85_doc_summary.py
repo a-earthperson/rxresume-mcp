@@ -76,6 +76,10 @@ async def test_doc_get_summary_shapes_and_counts(
 
     basics_summary = sections.get("basics") or {}
     assert basics_summary.get("name") == "Summary Name"
+    assert "headline" not in basics_summary
+    assert "website" not in basics_summary
+    assert "label" in basics_summary
+    assert "url" in basics_summary
     _assert_summary_section(basics_summary.get("profiles"), profile_ids)
     _assert_summary_section(sections.get("work"), work_ids)
     _assert_summary_section(sections.get("skills"), skill_ids)

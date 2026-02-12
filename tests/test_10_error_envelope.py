@@ -52,6 +52,9 @@ async def test_get_unknown_resume_returns_structured_not_found(
         mcp_session, "resume.doc.get", {"resume_id": unknown_id}
     )
     _assert_structured_error(payload, expected_http=404, expected_code="NOT_FOUND")
+    err = payload.get("error") or {}
+    details = err.get("details") or []
+    assert isinstance(details, list), f"Expected details list, got: {details!r}"
 
 
 @pytest.mark.asyncio

@@ -98,6 +98,43 @@ async def test_batch_create_returns_delta_not_full_list(
 
 
 @pytest.mark.asyncio
+async def test_section_item_create_all_populates_delta(
+    mcp_session: ClientSession, sample_resume_id: str
+):
+    payload = await call_tool_json(
+        mcp_session,
+        "resume.section.create",
+        {
+            "resume_id": sample_resume_id,
+            "section": "interests",
+            "items": [
+                {
+                    "id": None,
+                    "name": "AllMode",
+                    "keywords": ["delta"],
+                }
+            ],
+            "return_mode": "all",
+        },
+    )
+    assert payload.get("status") == "success"
+    resp = payload.get("response")
+    assert isinstance(resp, dict), "Expected response envelope object"
+    assert resp.get("mode") == "all"
+
+    items = resp.get("items") or []
+    assert any(
+        isinstance(item, dict) and item.get("name") == "AllMode" for item in items
+    )
+
+    created_items = resp.get("delta", {}).get("created") or []
+    assert len(created_items) == 1
+    created_id = created_items[0].get("id")
+    assert isinstance(created_id, str) and created_id
+    assert created_id in (resp.get("ids", {}).get("created") or [])
+
+
+@pytest.mark.asyncio
 async def test_section_item_update_can_return_ids_only(
     mcp_session: ClientSession, sample_resume_id: str
 ):
@@ -226,3 +263,37 @@ async def test_section_item_delete_can_return_ids_only(
     assert isinstance(resp, dict), "Expected response envelope object"
     assert resp.get("mode") == "none"
     assert item_id in (resp.get("ids", {}).get("deleted") or [])
+
+
+@pytest.mark.asyncio
+async def test_export_pdf_returns_url_only(
+    mcp_session: ClientSession, sample_resume_id: str
+):
+    payload = await call_tool_json(
+        mcp_session, "resume.export.pdf", {"resume_id": sample_resume_id}
+    )
+    assert payload.get("status") == "success"
+    resp = payload.get("response")
+    assert isinstance(resp, dict)
+    url = resp.get("url")
+    assert isinstance(url, str) and url
+    assert "content_base64" not in resp
+    assert "content_type" not in resp
+    assert "size_bytes" not in resp
+
+
+@pytest.mark.asyncio
+async def test_export_screenshot_returns_url_only(
+    mcp_session: ClientSession, sample_resume_id: str
+):
+    payload = await call_tool_json(
+        mcp_session, "resume.export.screenshot", {"resume_id": sample_resume_id}
+    )
+    assert payload.get("status") == "success"
+    resp = payload.get("response")
+    assert isinstance(resp, dict)
+    url = resp.get("url")
+    assert isinstance(url, str) and url
+    assert "content_base64" not in resp
+    assert "content_type" not in resp
+    assert "size_bytes" not in resp
