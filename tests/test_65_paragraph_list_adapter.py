@@ -5,7 +5,8 @@ from .conftest import call_tool_json
 
 
 def _first_delta_item(resp: dict, key: str) -> dict:
-    items = resp.get(key) or []
+    assert resp.get("mode") == "delta"
+    items = (resp.get("delta") or {}).get(key) or []
     assert (
         isinstance(items, list) and items
     ), f"Expected non-empty {key} list, got: {resp!r}"

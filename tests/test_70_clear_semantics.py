@@ -82,7 +82,8 @@ async def test_section_item_update_allows_clear_only_without_items(
     assert created_payload.get("status") == "success"
     created_resp = created_payload.get("response")
     assert isinstance(created_resp, dict)
-    created_item = created_resp["created"][0]
+    assert created_resp.get("mode") == "delta"
+    created_item = created_resp["delta"]["created"][0]
     item_id = created_item.get("id")
     assert isinstance(item_id, str) and item_id
 
@@ -100,7 +101,8 @@ async def test_section_item_update_allows_clear_only_without_items(
     assert cleared_payload.get("status") == "success"
     resp = cleared_payload.get("response")
     assert isinstance(resp, dict)
-    updated = resp.get("updated") or []
+    assert resp.get("mode") == "delta"
+    updated = resp.get("delta", {}).get("updated") or []
     assert (
         isinstance(updated, list) and updated
     ), f"Expected updated list, got: {resp!r}"

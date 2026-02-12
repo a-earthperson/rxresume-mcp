@@ -38,7 +38,8 @@ async def test_section_item_create_returns_delta_not_full_list(
 ):
     """
     Desired behavior:
-    - item.create should return {created:[...]} or similar delta, not the entire section list.
+    - item.create should return a stable envelope with mode=delta and delta.created items,
+      not the entire section list.
     """
     payload = await call_tool_json(
         mcp_session,
@@ -57,13 +58,15 @@ async def test_section_item_create_returns_delta_not_full_list(
     )
     assert payload.get("status") == "success"
     resp = payload.get("response")
-    assert isinstance(resp, dict), "Expected delta response object, not a list"
-    assert "created" in resp
-    assert len(resp["created"]) == 1
-    created_item = resp["created"][0]
+    assert isinstance(resp, dict), "Expected response envelope object"
+    assert resp.get("mode") == "delta"
+    assert resp.get("items") == []
+    created_items = resp.get("delta", {}).get("created") or []
+    assert len(created_items) == 1
+    created_item = created_items[0]
     created_id = created_item.get("id")
     assert isinstance(created_id, str) and created_id
-    assert created_id in (resp.get("created_ids") or [])
+    assert created_id in (resp.get("ids", {}).get("created") or [])
 
 
 @pytest.mark.asyncio
@@ -84,12 +87,13 @@ async def test_batch_create_returns_delta_not_full_list(
     )
     assert payload.get("status") == "success"
     resp = payload.get("response")
-    assert isinstance(resp, dict), "Expected delta response object, not a list"
-    assert "created" in resp
-    assert len(resp["created"]) == 2
-    created_ids = [item.get("id") for item in resp["created"]]
+    assert isinstance(resp, dict), "Expected response envelope object"
+    assert resp.get("mode") == "delta"
+    created_items = resp.get("delta", {}).get("created") or []
+    assert len(created_items) == 2
+    created_ids = [item.get("id") for item in created_items]
     assert all(isinstance(item_id, str) and item_id for item_id in created_ids)
-    returned_ids = resp.get("created_ids") or []
+    returned_ids = resp.get("ids", {}).get("created") or []
     assert set(created_ids) <= set(returned_ids)
 
 
@@ -99,7 +103,8 @@ async def test_section_item_update_can_return_ids_only(
 ):
     """
     Issue 3 regression:
-    - item.update must support a compact return mode to avoid echoing full section lists.
+    - item.update must support a compact return mode to avoid echoing full section lists,
+      while still returning a stable envelope.
     """
     created_payload = await call_tool_json(
         mcp_session,
@@ -114,7 +119,8 @@ async def test_section_item_update_can_return_ids_only(
     assert created_payload.get("status") == "success"
     created_resp = created_payload.get("response")
     assert isinstance(created_resp, dict)
-    created_item = created_resp["created"][0]
+    assert created_resp.get("mode") == "delta"
+    created_item = created_resp["delta"]["created"][0]
     item_id = created_item.get("id")
     assert isinstance(item_id, str) and item_id
 
@@ -130,8 +136,9 @@ async def test_section_item_update_can_return_ids_only(
     )
     assert update_payload.get("status") == "success"
     resp = update_payload.get("response")
-    assert isinstance(resp, dict), "Expected ids-only response object"
-    assert item_id in (resp.get("updated_ids") or [])
+    assert isinstance(resp, dict), "Expected response envelope object"
+    assert resp.get("mode") == "none"
+    assert item_id in (resp.get("ids", {}).get("updated") or [])
 
 
 @pytest.mark.asyncio
@@ -151,7 +158,8 @@ async def test_section_item_update_delta_returns_ids(
     assert created_payload.get("status") == "success"
     created_resp = created_payload.get("response")
     assert isinstance(created_resp, dict)
-    created_item = created_resp["created"][0]
+    assert created_resp.get("mode") == "delta"
+    created_item = created_resp["delta"]["created"][0]
     item_id = created_item.get("id")
     assert isinstance(item_id, str) and item_id
 
@@ -167,12 +175,13 @@ async def test_section_item_update_delta_returns_ids(
     )
     assert update_payload.get("status") == "success"
     resp = update_payload.get("response")
-    assert isinstance(resp, dict), "Expected delta response object"
-    updated_items = resp.get("updated") or []
+    assert isinstance(resp, dict), "Expected response envelope object"
+    assert resp.get("mode") == "delta"
+    updated_items = resp.get("delta", {}).get("updated") or []
     assert any(
         isinstance(item, dict) and item.get("id") == item_id for item in updated_items
     ), f"Expected updated item id {item_id} in: {updated_items!r}"
-    assert item_id in (resp.get("updated_ids") or [])
+    assert item_id in (resp.get("ids", {}).get("updated") or [])
 
 
 @pytest.mark.asyncio
@@ -181,7 +190,8 @@ async def test_section_item_delete_can_return_ids_only(
 ):
     """
     Issue 3 regression:
-    - item.delete must support a compact return mode to avoid echoing full section lists.
+    - item.delete must support a compact return mode to avoid echoing full section lists,
+      while still returning a stable envelope.
     """
     created_payload = await call_tool_json(
         mcp_session,
@@ -196,7 +206,8 @@ async def test_section_item_delete_can_return_ids_only(
     assert created_payload.get("status") == "success"
     created_resp = created_payload.get("response")
     assert isinstance(created_resp, dict)
-    created_item = created_resp["created"][0]
+    assert created_resp.get("mode") == "delta"
+    created_item = created_resp["delta"]["created"][0]
     item_id = created_item.get("id")
     assert isinstance(item_id, str) and item_id
 
@@ -212,5 +223,6 @@ async def test_section_item_delete_can_return_ids_only(
     )
     assert delete_payload.get("status") == "success"
     resp = delete_payload.get("response")
-    assert isinstance(resp, dict), "Expected ids-only response object"
-    assert item_id in (resp.get("deleted_ids") or [])
+    assert isinstance(resp, dict), "Expected response envelope object"
+    assert resp.get("mode") == "none"
+    assert item_id in (resp.get("ids", {}).get("deleted") or [])

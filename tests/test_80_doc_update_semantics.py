@@ -29,7 +29,9 @@ async def test_doc_update_allows_name_and_tags(
 
     # Verify persisted and canonical get response doesn't leak internal fields.
     get_payload = await call_tool_json(
-        mcp_session, "resume.doc.get", {"resume_id": sample_resume_id}
+        mcp_session,
+        "resume.doc.get",
+        {"resume_id": sample_resume_id, "summary": False},
     )
     assert get_payload.get("status") == "success", get_payload
     resume = get_payload.get("response") or {}

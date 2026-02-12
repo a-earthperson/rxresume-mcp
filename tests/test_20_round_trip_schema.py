@@ -90,7 +90,8 @@ async def test_experience_item_round_trip_uses_name_not_company(
     assert payload.get("status") == "success"
     resp = payload["response"]
     assert isinstance(resp, dict)
-    created = resp["created"][0]
+    assert resp.get("mode") == "delta"
+    created = resp["delta"]["created"][0]
     assert created.get("name") == "Tooling Inc"
     assert "company" not in created
     assert "description" not in created, "Backing field should not be exposed"
@@ -120,7 +121,8 @@ async def test_language_item_round_trip_uses_name_and_proficiency(
     assert payload.get("status") == "success"
     resp = payload["response"]
     assert isinstance(resp, dict)
-    created = resp["created"][0]
+    assert resp.get("mode") == "delta"
+    created = resp["delta"]["created"][0]
     assert created.get("language") == "Spanish"
     assert created.get("fluency") == "Basic"
 
@@ -148,7 +150,9 @@ async def test_doc_get_returns_canonical_schema(
     )
 
     payload = await call_tool_json(
-        mcp_session, "resume.doc.get", {"resume_id": sample_resume_id}
+        mcp_session,
+        "resume.doc.get",
+        {"resume_id": sample_resume_id, "summary": False},
     )
     assert payload.get("status") == "success"
     resume = payload.get("response")

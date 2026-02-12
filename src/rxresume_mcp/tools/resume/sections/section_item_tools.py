@@ -247,31 +247,42 @@ def shape_mutation_result(
     deleted_ids: List[str] | None = None,
 ) -> Any:
     """
-    Shape mutation responses to avoid returning O(N) lists when not needed.
+    Shape mutation responses into a stable envelope.
 
-    - all:   return the full (current) items list (back-compat).
-    - delta: return created/updated items plus id lists for all mutations.
-    - none:  return ids only (no items payloads).
+    Envelope shape (always returned):
+      {
+        "mode": "all" | "delta" | "none",
+        "items": [...],  # full list when mode="all"; empty otherwise
+        "delta": {
+          "created": [...],  # items when mode="delta"; empty otherwise
+          "updated": [...],
+          "deleted": [...],  # ids when mode="delta"; empty otherwise
+        },
+        "ids": {
+          "created": [...],  # ids for created items
+          "updated": [...],
+          "deleted": [...],
+        },
+      }
     """
     mode = coerce_return_mode(return_mode)
     created = list(created_ids or [])
     updated = list(updated_ids or [])
     deleted = list(deleted_ids or [])
-    if mode == "all":
-        return all_items
-    if mode == "none":
-        return {"created_ids": created, "updated_ids": updated, "deleted_ids": deleted}
-    # delta
-    created_items = _select_items_by_ids(all_items, set(created))
-    updated_items = _select_items_by_ids(all_items, set(updated))
-    return {
-        "created": created_items,
-        "updated": updated_items,
-        "deleted": deleted,
-        "created_ids": created,
-        "updated_ids": updated,
-        "deleted_ids": deleted,
+    envelope = {
+        "mode": mode,
+        "items": [],
+        "delta": {"created": [], "updated": [], "deleted": []},
+        "ids": {"created": created, "updated": updated, "deleted": deleted},
     }
+    if mode == "all":
+        envelope["items"] = list(all_items) if isinstance(all_items, list) else []
+        return envelope
+    if mode == "delta":
+        envelope["delta"]["created"] = _select_items_by_ids(all_items, set(created))
+        envelope["delta"]["updated"] = _select_items_by_ids(all_items, set(updated))
+        envelope["delta"]["deleted"] = deleted
+    return envelope
 
 
 def prepare_item_with_spec(
@@ -515,7 +526,8 @@ def register_section_item_tools(
         name=f"{tool_prefix}.item.create",
         description=(
             f"Add one or more {noun} items. "
-            "All fields are optional; hidden is forced to false; item.id must be omitted on create."
+            "All fields are optional; hidden is forced to false; item.id must be omitted on create. "
+            "Returns an envelope with mode/items/delta/ids; unused fields are empty."
         ),
     )(_create)
 
@@ -561,7 +573,10 @@ def register_section_item_tools(
 
     mcp.tool(
         name=f"{tool_prefix}.item.delete",
-        description=f"Remove one or more {noun} items by id.",
+        description=(
+            f"Remove one or more {noun} items by id. "
+            "Returns an envelope with mode/items/delta/ids; unused fields are empty."
+        ),
     )(_delete)
 
     async def _update(
@@ -719,7 +734,8 @@ def register_section_item_tools(
         name=f"{tool_prefix}.item.update",
         description=(
             f"Update one or more {noun} items by id. "
-            "item.id is required; other fields are optional."
+            "item.id is required; other fields are optional. "
+            "Returns an envelope with mode/items/delta/ids; unused fields are empty."
         ),
     )(_update)
 

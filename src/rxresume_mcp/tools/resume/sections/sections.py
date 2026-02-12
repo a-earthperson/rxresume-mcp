@@ -160,3 +160,19 @@ def _extract_section_data(resume: Dict[str, Any], section_path: str) -> Dict[str
         "section_path": section_path,
         "data": section_data,
     }
+
+
+def summarize_section_items(items: Any) -> Dict[str, Any]:
+    """Return a compact summary for a section items array."""
+    if items is None:
+        items = []
+    if not isinstance(items, list):
+        raise ValueError("Section items is not an array")
+    ids: List[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item_id = item.get("id")
+        if isinstance(item_id, str) and item_id:
+            ids.append(item_id)
+    return {"ids": ids, "count": len(ids)}

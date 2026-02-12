@@ -35,7 +35,8 @@ async def test_description_is_not_wrapped_in_html(
     assert payload.get("status") == "success"
     resp = payload["response"]
     assert isinstance(resp, dict)
-    created = resp["created"][0]
+    assert resp.get("mode") == "delta"
+    created = resp["delta"]["created"][0]
     assert created.get("name") == "HTML Test"
     assert (
         created.get("description") == description

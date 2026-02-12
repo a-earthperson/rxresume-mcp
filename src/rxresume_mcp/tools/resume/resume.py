@@ -38,7 +38,7 @@ from .sections.project import PROJECT_SPEC
 from .sections.publication import PUBLICATION_SPEC
 from .sections.reference import REFERENCE_SPEC
 from .sections.section_item_tools import extract_section_items
-from .sections.sections import _require_resume_object
+from .sections.sections import _require_resume_object, summarize_section_items
 from .sections.skill import SKILL_SPEC
 from .sections.volunteer import VOLUNTEER_SPEC
 from rxresume_mcp import patch_ops
@@ -193,6 +193,47 @@ class SectionItemsAdapter:
         return []
 
 
+@dataclass(frozen=True)
+class BasicsSummaryAdapter:
+    """Adapter for composing basics into a compact summary."""
+
+    def apply_defaults(self, payload: Dict[str, Any]) -> None:
+        return None
+
+    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        basics = _build_basics_payload(payload)
+        if not isinstance(basics, dict):
+            return {"basics": basics}
+        summarized = dict(basics)
+        summarized["profiles"] = summarize_section_items(basics.get("profiles"))
+        return {"basics": summarized}
+
+    def build_update_ops(
+        self, payload: Dict[str, Any], target: Any
+    ) -> List[Dict[str, Any]]:
+        return []
+
+
+@dataclass(frozen=True)
+class SectionItemsSummaryAdapter:
+    """Adapter for composing section item summaries into resume sections."""
+
+    source_key: str
+    output_key: str
+
+    def apply_defaults(self, payload: Dict[str, Any]) -> None:
+        return None
+
+    def reshape(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        items = extract_section_items(payload, self.source_key)
+        return {self.output_key: summarize_section_items(items)}
+
+    def build_update_ops(
+        self, payload: Dict[str, Any], target: Any
+    ) -> List[Dict[str, Any]]:
+        return []
+
+
 _SECTION_ITEM_SPEC_MAP = (
     # (output_key, source_key, spec)
     ("work", "experience", EXPERIENCE_SPEC),
@@ -226,28 +267,64 @@ SECTION_FIELDS.extend(
 
 SECTIONS_SPEC = build_spec("sections", SECTION_FIELDS)
 
+SUMMARY_SECTION_FIELDS: List[FieldSpec] = [
+    FieldSpec(name="basics", field_type=Dict[str, Any], adapter=BasicsSummaryAdapter()),
+]
+SUMMARY_SECTION_FIELDS.extend(
+    [
+        FieldSpec(
+            name=output_key,
+            field_type=Dict[str, Any],
+            adapter=SectionItemsSummaryAdapter(
+                source_key=source_key, output_key=output_key
+            ),
+        )
+        for output_key, source_key, _spec in _SECTION_ITEM_SPEC_MAP
+    ]
+)
+
+SECTIONS_SUMMARY_SPEC = build_spec("sections_summary", SUMMARY_SECTION_FIELDS)
+
 
 def _compose_resume_sections(resume: Dict[str, Any]) -> Dict[str, Any]:
     return SECTIONS_SPEC.reshape(resume)
 
 
+def _summarize_resume_sections(resume: Dict[str, Any]) -> Dict[str, Any]:
+    return SECTIONS_SUMMARY_SPEC.reshape(resume)
+
+
+_RESUME_EXCLUDED_FIELDS = {
+    "customSections",
+    "data",
+    "hasPassword",
+    "isLocked",
+    "isPublic",
+    "metadata",
+    "picture",
+    # MCP hides slug; upstream still requires it on create.
+    "slug",
+}
+
+
 def _compose_resume_payload(resume: Dict[str, Any]) -> Dict[str, Any]:
-    excluded_fields = {
-        "customSections",
-        "data",
-        "hasPassword",
-        "isLocked",
-        "isPublic",
-        "metadata",
-        "picture",
-        # MCP hides slug; upstream still requires it on create.
-        "slug",
-    }
     composed = {
-        key: value for key, value in resume.items() if key not in excluded_fields
+        key: value
+        for key, value in resume.items()
+        if key not in _RESUME_EXCLUDED_FIELDS
     }
     composed["sections"] = _compose_resume_sections(resume)
     return composed
+
+
+def _summarize_resume_payload(resume: Dict[str, Any]) -> Dict[str, Any]:
+    summarized = {
+        key: value
+        for key, value in resume.items()
+        if key not in _RESUME_EXCLUDED_FIELDS
+    }
+    summarized["sections"] = _summarize_resume_sections(resume)
+    return summarized
 
 
 def _reshape_resume(payload: Any) -> Any:
@@ -256,6 +333,13 @@ def _reshape_resume(payload: Any) -> Any:
     resume = _require_resume_object(payload)
     composed = _compose_resume_payload(resume)
     return ComposedResume.model_validate(composed).model_dump()
+
+
+def _summarize_resume(payload: Any) -> Any:
+    if not isinstance(payload, dict) or "data" not in payload:
+        return payload
+    resume = _require_resume_object(payload)
+    return _summarize_resume_payload(resume)
 
 
 def _resume_root_path(field: str) -> str:
@@ -369,15 +453,31 @@ def register_resume_doc_tools(mcp: FastMCP) -> None:
             ctx=ctx,
         )
 
-    @mcp.tool(name="resume.doc.get", description="Fetch a resume by ID")
+    @mcp.tool(
+        name="resume.doc.get",
+        description=(
+            "Fetch a resume by ID. Use summary=true for a compact view or "
+            "summary=false for the full document."
+        ),
+    )
     async def get_resume(
         ctx: Context,
         resume_id: str = Field(description="Resume ID"),
+        summary: bool = Field(
+            default=True,
+            description=(
+                "When true (default), return a compact summary: basics fields are "
+                "preserved but basics.profiles and all sections are summarized as "
+                "{ids: [...], count: <n>}. When false, return the full resume with "
+                "section items."
+            ),
+        ),
     ) -> Dict[str, Any]:
         async def _operation(client: RxResumeClient) -> Any:
             result = await client.get_resume(resume_id=resume_id)
+            reshaped = _summarize_resume(result) if summary else _reshape_resume(result)
             return _normalize_resume_ids(
-                _strip_resume_view_fields(_strip_slug(_reshape_resume(result)))
+                _strip_resume_view_fields(_strip_slug(reshaped))
             )
 
         return await execute_rxresume_operation(

@@ -15,6 +15,15 @@ def _assert_structured_error(
     assert isinstance(
         err, dict
     ), f"Expected error to be a dict, got {type(err)}: {err!r}"
+    # Ensure the stable error envelope keys are present.
+    for key in ("httpStatus", "code", "message", "details", "issues", "retryable"):
+        assert key in err, f"Expected error to include {key}, got: {err!r}"
+    assert isinstance(err.get("httpStatus"), int), f"Bad httpStatus: {err!r}"
+    assert isinstance(err.get("code"), str), f"Bad code: {err!r}"
+    assert isinstance(err.get("message"), str), f"Bad message: {err!r}"
+    assert isinstance(err.get("details"), list), f"Bad details: {err!r}"
+    assert isinstance(err.get("issues"), list), f"Bad issues: {err!r}"
+    assert isinstance(err.get("retryable"), bool), f"Bad retryable: {err!r}"
     if expected_http is not None:
         assert err.get("httpStatus") == expected_http
     if expected_code is not None:

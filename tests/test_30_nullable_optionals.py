@@ -140,8 +140,9 @@ async def test_create_accepts_null_for_optional_fields(
     )
     assert payload.get("status") == "success", payload
     resp = payload.get("response")
-    assert isinstance(resp, dict), f"Expected delta response dict, got: {resp!r}"
-    created_items = resp.get("created") or []
+    assert isinstance(resp, dict), f"Expected response envelope dict, got: {resp!r}"
+    assert resp.get("mode") == "delta"
+    created_items = resp.get("delta", {}).get("created") or []
     assert isinstance(created_items, list) and created_items
     created = created_items[0]
     assert isinstance(created, dict)
@@ -176,8 +177,9 @@ async def test_work_create_preserves_null_end_date(
     )
     assert payload.get("status") == "success", payload
     resp = payload.get("response")
-    assert isinstance(resp, dict), f"Expected delta response dict, got: {resp!r}"
-    created_items = resp.get("created") or []
+    assert isinstance(resp, dict), f"Expected response envelope dict, got: {resp!r}"
+    assert resp.get("mode") == "delta"
+    created_items = resp.get("delta", {}).get("created") or []
     assert isinstance(created_items, list) and created_items
     created = created_items[0]
     assert isinstance(created, dict)
@@ -210,7 +212,8 @@ async def test_skill_create_allows_null_level_and_preserves_null(
     assert payload.get("status") == "success"
     resp = payload.get("response")
     assert isinstance(resp, dict)
-    created_items = resp.get("created") or []
+    assert resp.get("mode") == "delta"
+    created_items = resp.get("delta", {}).get("created") or []
     assert isinstance(created_items, list) and created_items
     created = created_items[0]
     assert created.get("name") == "Null Level Skill"
@@ -243,7 +246,8 @@ async def test_language_create_allows_null_level_and_preserves_null(
     assert payload.get("status") == "success"
     resp = payload.get("response")
     assert isinstance(resp, dict)
-    created_items = resp.get("created") or []
+    assert resp.get("mode") == "delta"
+    created_items = resp.get("delta", {}).get("created") or []
     assert isinstance(created_items, list) and created_items
     created = created_items[0]
     assert created.get("language") == "Klingon"

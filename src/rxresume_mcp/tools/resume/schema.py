@@ -265,8 +265,33 @@ def _build_section_schema(section: str) -> Dict[str, Any]:
                 )
             },
             "responses": {
-                "defaultReturn": "return_mode defaults to 'delta' for create/update/delete",
+                "defaultReturn": (
+                    "return_mode defaults to 'delta' for create/update/delete; "
+                    "responses always use the envelope shape described below."
+                ),
                 "returnModes": ["delta", "all", "none"],
+                "envelope": {
+                    "shape": {
+                        "mode": "<all|delta|none>",
+                        "items": ["<item>", "..."],
+                        "delta": {
+                            "created": ["<item>"],
+                            "updated": ["<item>"],
+                            "deleted": ["<id>"],
+                        },
+                        "ids": {
+                            "created": ["<id>"],
+                            "updated": ["<id>"],
+                            "deleted": ["<id>"],
+                        },
+                    },
+                    "notes": [
+                        "Envelope is always returned; unused lists are empty.",
+                        "items is populated only when mode='all'.",
+                        "delta is populated only when mode='delta'.",
+                        "ids always contains id lists for created/updated/deleted.",
+                    ],
+                },
             },
         },
         "operations": {

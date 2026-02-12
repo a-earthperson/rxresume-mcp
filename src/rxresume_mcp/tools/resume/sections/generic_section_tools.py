@@ -189,7 +189,8 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         name="resume.section.create",
         description=(
             "Add items to a resume section (items must be a non-empty list; "
-            "wrap a single item in a list)."
+            "wrap a single item in a list). "
+            "Returns an envelope with mode/items/delta/ids; unused fields are empty."
         ),
     )
     async def _create(
@@ -249,7 +250,8 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
         name="resume.section.update",
         description=(
             "Update items in a resume section by id (items must be a list; "
-            "clear-only updates are allowed)."
+            "clear-only updates are allowed). "
+            "Returns an envelope with mode/items/delta/ids; unused fields are empty."
         ),
     )
     async def _update(
@@ -413,7 +415,8 @@ def register_generic_section_tools(mcp: FastMCP) -> None:
     @mcp.tool(
         name="resume.section.delete",
         description=(
-            "Delete items from a resume section by id (item_ids must be a non-empty list)."
+            "Delete items from a resume section by id (item_ids must be a non-empty list). "
+            "Returns an envelope with mode/items/delta/ids; unused fields are empty."
         ),
     )
     async def _delete(
